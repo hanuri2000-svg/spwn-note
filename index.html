@@ -278,6 +278,200 @@
         border-radius: 12px;
         background: linear-gradient(145deg, #fff, #fbf3f8);
       }
+      .tier-head {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 14px;
+        margin-bottom: 12px;
+      }
+      .tier-head h2 {
+        margin: 0 0 4px;
+        color: #513849;
+        font-size: 22px;
+      }
+      .tier-status {
+        color: #745e6b;
+        font-size: 13px;
+        font-weight: 700;
+      }
+      .tier-level-filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 10px;
+      }
+      .tier-level-filters button,
+      .tier-race-filters button,
+      .tier-live-toggle {
+        padding: 7px 11px;
+        border: 1px solid #dac6d2;
+        border-radius: 999px;
+        background: #fff;
+        color: #5a4350;
+        font-weight: 850;
+        cursor: pointer;
+      }
+      .tier-level-filters button.active {
+        border-color: #9a607f;
+        background: linear-gradient(135deg, #8b5574, #b77798);
+        color: #fff;
+      }
+      .tier-tools {
+        display: grid;
+        grid-template-columns: minmax(220px, 1fr) auto auto;
+        gap: 9px;
+        align-items: center;
+        margin-bottom: 13px;
+      }
+      .tier-search {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #d9c2cf;
+        border-radius: 9px;
+        background: #fff;
+        color: #483440;
+        font-weight: 800;
+      }
+      .tier-race-filters {
+        display: flex;
+        gap: 5px;
+      }
+      .tier-race-filters button {
+        min-width: 42px;
+        border-radius: 9px;
+      }
+      .tier-race-filters button.active {
+        background: #684d62;
+        color: #fff;
+      }
+      .tier-live-toggle {
+        border: 2px solid #dc315a;
+        border-radius: 9px;
+        color: #c51f4b;
+      }
+      .tier-live-toggle.active {
+        background: #dc315a;
+        color: #fff;
+      }
+      .tier-groups {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 11px;
+        align-items: start;
+      }
+      .tier-group {
+        overflow: hidden;
+        border: 1px solid #dfccd7;
+        border-radius: 13px;
+        background: #fff;
+        box-shadow: 0 5px 16px #633d510b;
+      }
+      .tier-group > header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 9px 12px;
+        border: 0;
+        border-bottom: 1px solid #ead7e1;
+        background: linear-gradient(90deg, #f5e8f0, #f8f1fb);
+        box-shadow: none;
+        color: #543847;
+      }
+      .tier-group h3 {
+        margin: 0;
+        font-size: 17px;
+      }
+      .tier-group header span {
+        color: #735e6b;
+        font-size: 12px;
+        font-weight: 800;
+      }
+      .tier-players {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 2px;
+        padding: 6px;
+      }
+      .tier-player {
+        display: grid;
+        grid-template-columns: 34px 24px minmax(0, 1fr) auto;
+        gap: 6px;
+        align-items: center;
+        min-height: 42px;
+        padding: 4px 6px;
+        border-radius: 9px;
+      }
+      .tier-player:hover {
+        background: #f9f1f6;
+      }
+      .tier-avatar-link {
+        display: grid;
+        width: 32px;
+        height: 32px;
+        place-items: center;
+        overflow: hidden;
+        border: 2px solid #ead0de;
+        border-radius: 50%;
+        background: #f1e5ec;
+        text-decoration: none;
+      }
+      .tier-avatar {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .tier-avatar-fallback {
+        width: 100%;
+        height: 100%;
+        place-items: center;
+        color: #765368;
+        font-size: 13px;
+        font-weight: 900;
+      }
+      .tier-race {
+        display: grid;
+        width: 23px;
+        height: 23px;
+        place-items: center;
+        border-radius: 6px;
+        color: #fff;
+        font-size: 11px;
+      }
+      .race-T .tier-race { background: #3989cf; }
+      .race-Z .tier-race { background: #cb527f; }
+      .race-P .tier-race { background: #df8438; }
+      .tier-player-name {
+        overflow: hidden;
+        color: #44313d;
+        font-size: 13px;
+        font-weight: 850;
+        text-decoration: none;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .tier-live {
+        padding: 4px 6px;
+        border: 2px solid #df365c;
+        border-radius: 8px;
+        background: #fff;
+        color: #c71942;
+        font-size: 10px;
+        font-weight: 950;
+        text-decoration: none;
+        white-space: nowrap;
+      }
+      .tier-empty {
+        grid-column: 1 / -1;
+        padding: 40px 16px;
+      }
+      .tier-note {
+        margin: 13px 2px 0;
+        color: #715d69;
+        font-size: 12px;
+        text-align: center;
+      }
       .rival-scoreboard {
         display: grid;
         grid-template-columns: 1fr auto 1fr;
@@ -552,6 +746,17 @@
         .rival-player.right > div {
           justify-content: center;
         }
+        .tier-head {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+        .tier-tools,
+        .tier-groups {
+          grid-template-columns: 1fr;
+        }
+      }
+      @media (min-width: 701px) and (max-width: 1100px) {
+        .tier-groups { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       }
       .notice {
         margin: 18px 2px 5px;
@@ -657,7 +862,7 @@
     <header>
       <div class="brand">
         <div class="brandtext">
-          <h1>스폰노트 <span class="version-badge">v1.3.0</span></h1>
+          <h1>스폰노트 <span class="version-badge">v1.4.0</span></h1>
           <div class="brand-subtitle">STARCRAFT RECORD</div>
         </div>
       </div>
@@ -666,7 +871,8 @@
         <div class="tabs">
           <button id="dashTab" class="active" onclick="showTab('dash')">
             대시보드</button
-          ><button id="logTab" onclick="showTab('log')">스폰일지</button>
+          ><button id="logTab" onclick="showTab('log')">스폰일지</button
+          ><button id="tierTab" onclick="showTab('tier')">티어표</button>
         </div>
       </div>
     </header>
@@ -854,6 +1060,45 @@
             </thead>
             <tbody id="tbody"></tbody>
           </table>
+        </div>
+      </section>
+      <section id="tier" class="hidden">
+        <div class="section">
+          <div class="tier-head">
+            <div>
+              <h2>스타 티어표</h2>
+              <div id="tierStatus" class="tier-status" aria-live="polite">
+                티어표를 열면 ELOBOARD 최신 자료를 확인해.
+              </div>
+            </div>
+            <button id="tierRefreshButton" type="button" class="btn" onclick="loadTierTable(true)">
+              ↻ 티어표·LIVE 갱신
+            </button>
+          </div>
+          <div id="tierLevelFilters" class="tier-level-filters" role="group" aria-label="티어 선택"></div>
+          <div class="tier-tools">
+            <input
+              id="tierSearch"
+              class="tier-search"
+              placeholder="선수 이름 검색"
+              oninput="setTierSearch(this.value)"
+            />
+            <div class="tier-race-filters" role="group" aria-label="종족 선택">
+              <button type="button" class="active" data-tier-race="ALL" onclick="setTierRace('ALL')">전체</button>
+              <button type="button" data-tier-race="T" onclick="setTierRace('T')">T</button>
+              <button type="button" data-tier-race="Z" onclick="setTierRace('Z')">Z</button>
+              <button type="button" data-tier-race="P" onclick="setTierRace('P')">P</button>
+            </div>
+            <button id="tierLiveOnly" type="button" class="tier-live-toggle" onclick="toggleTierLiveOnly()" aria-pressed="false">
+              ○ LIVE만
+            </button>
+          </div>
+          <div id="tierGroups" class="tier-groups">
+            <div class="empty tier-empty">티어표를 불러올 준비 중이야</div>
+          </div>
+          <p class="tier-note">
+            여러 티어를 동시에 선택할 수 있어. 선수 사진은 SOOP 방송국, 이름은 ELOBOARD 선수 페이지로 연결돼.
+          </p>
         </div>
       </section>
     </main>
