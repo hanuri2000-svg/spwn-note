@@ -101,6 +101,64 @@ function recentMatchSummary(match, playerId) {
   };
 }
 
+function recordStats(records = []) {
+  const wins = records.filter((record) => record.result === "승").length;
+  const losses = records.filter((record) => record.result === "패").length;
+  const games = wins + losses;
+  return {
+    wins,
+    losses,
+    games,
+    winRate: games ? Math.round((wins / games) * 1000) / 10 : 0,
+  };
+}
+
+function mondayOf(dateKey) {
+  const date = new Date(`${dateKey}T00:00:00Z`);
+  const weekday = date.getUTCDay();
+  date.setUTCDate(date.getUTCDate() - ((weekday + 6) % 7));
+  return date.toISOString().slice(0, 10);
+}
+
+function buildDashboardSummary(profile, raceRows = [], matches = [], today) {
+  const player = profileSummary(profile);
+  const dateKey = /^\d{4}-\d{2}-\d{2}$/.test(today) ? today : new Date().toISOString().slice(0, 10);
+  const monthKey = dateKey.slice(0, 7);
+  const weekStart = mondayOf(dateKey);
+  const records = matches
+    .map((match) => matchToRecord(match, player.id))
+    .filter(Boolean)
+    .sort((a, b) => b.date.localeCompare(a.date) || Number(b.eloRecordId) - Number(a.eloRecordId));
+  const overall = {
+    wins: player.wins,
+    losses: player.losses,
+    games: player.games,
+    winRate: player.winRate,
+  };
+
+  return {
+    player,
+    overall,
+    month: recordStats(records.filter((record) => record.date.startsWith(monthKey))),
+    week: recordStats(records.filter((record) => record.date >= weekStart && record.date <= dateKey)),
+    totalGames: overall.games,
+    races: ["T", "Z", "P"].map((race) => {
+      const row = (Array.isArray(raceRows) ? raceRows : []).find((item) => item.race === race);
+      const stats = row
+        ? {
+            wins: Number(row.wins || 0),
+            losses: Number(row.losses || 0),
+            games: Number(row.games || 0),
+            winRate: Number(row.win_rate || 0),
+          }
+        : recordStats(records.filter((record) => record.race === RACE_LABELS[race]));
+      return { race, raceLabel: RACE_LABELS[race], ...stats };
+    }),
+    latestMatchDate: String(player.lastPlayedOn || records[0]?.date || ""),
+    asOf: dateKey,
+  };
+}
+
 function buildRivalSummary(baseProfile, opponentProfile, rivalRow, matches = []) {
   const base = profileSummary(baseProfile);
   const opponent = profileSummary(opponentProfile);
@@ -145,7 +203,7 @@ async function requestEloJson(path, params = {}, attempts = 2) {
     try {
       const response = await fetch(url, {
         headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; SpawnNote/1.2; +https://hanuri2000-svg.github.io/spwn-note/)",
+          "User-Agent": "Mozilla/5.0 (compatible; SpawnNote/1.3; +https://hanuri2000-svg.github.io/spwn-note/)",
           Accept: "application/json",
           "Accept-Language": "ko-KR,ko;q=0.9",
           Referer: `${ELO_API_URL}/`,
@@ -257,6 +315,40 @@ async function eloRival(url) {
   return buildRivalSummary(baseProfile, opponentProfile, rivalRow, filteredRecent);
 }
 
+async function recentMatchesForDashboard(playerId, fromDate) {
+  const matches = [];
+  for (let page = 0; page < 10; page += 1) {
+    const rows = await requestEloJson("/api/matches", {
+      player_id: playerId,
+      date_from: fromDate,
+      limit: 200,
+      offset: page * 200,
+    });
+    const pageRows = Array.isArray(rows) ? rows : [];
+    matches.push(...pageRows);
+    if (pageRows.length < 200) return matches;
+  }
+  throw new ResponseError(422, "최근 기간의 전적 수가 너무 많아 대시보드 통계를 계산하지 못했어.");
+}
+
+async function eloDashboard(url) {
+  const player = validatePlayerName(url.searchParams.get("player"), "기준 선수");
+  const today = String(url.searchParams.get("today") || "").trim();
+  if (today && !/^\d{4}-\d{2}-\d{2}$/.test(today)) {
+    throw new ResponseError(400, "기준 날짜가 올바르지 않아.");
+  }
+
+  const profile = await resolveProfile(player);
+  const dateKey = today || new Date().toISOString().slice(0, 10);
+  const monthStart = `${dateKey.slice(0, 7)}-01`;
+  const periodStart = [monthStart, mondayOf(dateKey)].sort()[0];
+  const [raceRows, matches] = await Promise.all([
+    requestEloJson(`/api/players/${profile.id}/stats/races`),
+    recentMatchesForDashboard(profile.id, periodStart),
+  ]);
+  return buildDashboardSummary(profile, raceRows, matches, dateKey);
+}
+
 class ResponseError extends Error {
   constructor(status, message) {
     super(message);
@@ -284,10 +376,11 @@ export default {
     const origin = env.ALLOWED_ORIGIN || "*";
     if (request.method === "OPTIONS") return json({ ok: true }, 200, origin);
     if (request.method !== "GET") return json({ error: "method not allowed" }, 405, origin);
-    if (url.pathname === "/health") return json({ ok: true, version: "1.2.0" }, 200, origin);
+    if (url.pathname === "/health") return json({ ok: true, version: "1.3.0" }, 200, origin);
     try {
       if (url.pathname === "/api/elo/preview") return json(await eloPreview(url), 200, origin);
       if (url.pathname === "/api/elo/rival") return json(await eloRival(url), 200, origin);
+      if (url.pathname === "/api/elo/dashboard") return json(await eloDashboard(url), 200, origin);
       return json({ error: "not found" }, 404, origin);
     } catch (error) {
       return json(
@@ -300,6 +393,7 @@ export default {
 };
 
 export const __test = {
+  buildDashboardSummary,
   buildRivalSummary,
   matchToRecord,
   normalizeName,
