@@ -8,6 +8,11 @@ const LEGACY_STORAGE_KEY = "new" + "catsleSpawnNote.records.v1";
 const LEGACY_PLAYER_KEY = "new" + "catsleEloPlayer";
 const ELO_API_BASE = String(window.SPAWN_NOTE_ELO_API_BASE || "").replace(/\/$/, "");
 const LIVE_API_BASE = "https://dorang-live.hajimayo8130.workers.dev";
+const TIER_LIVE_NAME_ALIASES = {
+  낭니: ["냥니"],
+  빵체리: ["땡세리"],
+  럭키위키: ["럭키워키"],
+};
 
 let records = [];
 let eloPreviewRecords = [];
@@ -17,6 +22,7 @@ let eloDashboardLoading = false;
 let eloDashboardError = "";
 let tierPayload = null;
 let tierLive = {};
+let tierLiveByName = {};
 let tierLoading = false;
 let tierLiveLoading = false;
 let tierError = "";
@@ -421,8 +427,32 @@ function tierProfileUrl(player) {
   return player.playerId ? `https://eloboard.co.kr/players/${encodeURIComponent(player.playerId)}` : "#";
 }
 
+function normalizeTierLiveName(value) {
+  return String(value || "")
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[^0-9a-z가-힣]/g, "");
+}
+
+function tierPlayerLiveUrl(player) {
+  const soopId = String(player.soopId || "").toLowerCase();
+  if (soopId && tierLive[soopId]) return tierLive[soopId];
+
+  const names = [player.name, ...(TIER_LIVE_NAME_ALIASES[player.name] || [])]
+    .map(normalizeTierLiveName)
+    .filter(Boolean);
+  for (const name of names) {
+    if (tierLiveByName[name]) return tierLiveByName[name];
+  }
+
+  const matches = Object.entries(tierLiveByName).filter(([nickname]) =>
+    names.some((name) => nickname.startsWith(name)),
+  );
+  return matches.length === 1 ? matches[0][1] : "";
+}
+
 function tierPlayerCard(player) {
-  const liveUrl = player.soopId ? tierLive[player.soopId] : "";
+  const liveUrl = tierPlayerLiveUrl(player);
   const channelUrl = player.soopId ? `https://ch.sooplive.co.kr/${encodeURIComponent(player.soopId)}` : "";
   const imageUrl = player.thumbUrl ? `https://eloboard.co.kr/static/${player.thumbUrl}` : "";
   const avatarUrl = liveUrl || channelUrl || tierProfileUrl(player);
@@ -494,7 +524,7 @@ function renderTierTable() {
     .filter((tier) => !tierLevels.size || tierLevels.has(tier.label))
     .map((tier) => {
       const players = (tier.players || []).filter((player) => {
-        const live = player.soopId && tierLive[player.soopId];
+        const live = tierPlayerLiveUrl(player);
         return (
           (tierRace === "ALL" || player.race === tierRace) &&
           (!query || String(player.name || "").toLowerCase().includes(query)) &&
@@ -517,13 +547,23 @@ async function fetchTierLive() {
   tierLiveLoading = true;
   try {
     const data = await fetchJson(`${LIVE_API_BASE}/?t=${Date.now()}`, { cache: "no-store" });
+    const broadcasts = Array.isArray(data.live) ? data.live : [];
     tierLive = Object.fromEntries(
-      (Array.isArray(data.live) ? data.live : [])
+      broadcasts
         .filter((broadcast) => broadcast.soop_id)
         .map((broadcast) => [
-          broadcast.soop_id,
+          String(broadcast.soop_id).toLowerCase(),
           broadcast.url || `https://ch.sooplive.co.kr/${broadcast.soop_id}`,
         ]),
+    );
+    tierLiveByName = Object.fromEntries(
+      broadcasts
+        .map((broadcast) => [
+          normalizeTierLiveName(broadcast.nick || broadcast.nickname),
+          broadcast.url ||
+            (broadcast.soop_id ? `https://ch.sooplive.co.kr/${broadcast.soop_id}` : ""),
+        ])
+        .filter(([nickname, url]) => nickname && url),
     );
     const checked = new Date(data.updatedAt || Date.now());
     tierLiveStatus = `LIVE ${checked.toLocaleTimeString("ko-KR", {

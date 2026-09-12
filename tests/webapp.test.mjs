@@ -140,7 +140,7 @@ test("공용 이름과 화면 버전을 표시한다", () => {
   const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
   const manifest = fs.readFileSync(new URL("../manifest.webmanifest", import.meta.url), "utf8");
   assert.match(html, />스폰노트 /);
-  assert.match(html, />v1\.4\.3</);
+  assert.match(html, />v1\.4\.4</);
   assert.match(html, /id="basePlayer"/);
   assert.match(html, /id="tierTab"/);
   assert.match(html, /id="tierGroups"/);
@@ -159,7 +159,7 @@ test("NEW CATSLE 배경은 독립 화면에만 표시한다", () => {
   assert.match(html, /documentElement\.classList\.add\("embed-mode"\)/);
   assert.match(html, /\.\/assets\/brand-watermark\.png/);
   assert.match(html, /opacity: 0\.12/);
-  assert.match(serviceWorker, /spawn-note-v1\.4\.3/);
+  assert.match(serviceWorker, /spawn-note-v1\.4\.4/);
   assert.match(serviceWorker, /\.\/assets\/brand-watermark\.png/);
 });
 
@@ -209,6 +209,55 @@ test("ELOBOARD 티어표를 불러와 복수 티어와 LIVE 상태를 표시한�
   vm.runInContext("toggleTierLevel('8티어'); toggleTierLevel('7티어')", context);
   assert.match(elements.get("tierLevelFilters").innerHTML, /✓ 8티어/);
   assert.match(elements.get("tierLevelFilters").innerHTML, /✓ 7티어/);
+});
+
+test("변경사항 선수는 SOOP 아이디가 없어도 닉네임과 변경 활동명으로 LIVE를 찾는다", async () => {
+  const fetchImpl = async (url) => {
+    const data = String(url).includes("dorang-live")
+      ? {
+          updatedAt: "2026-09-12T07:51:18.141Z",
+          live: [
+            {
+              soop_id: "faker1004",
+              nick: "가영ㅇ.ㅇ",
+              url: "https://play.sooplive.com/faker1004/1",
+            },
+            {
+              soop_id: "cherry123",
+              nick: "땡세리",
+              url: "https://play.sooplive.com/cherry123/2",
+            },
+          ],
+        }
+      : {
+          version: "3.61",
+          updatedOn: "2026-08-29",
+          tiers: [
+            {
+              key: "tier8",
+              label: "8티어",
+              players: [{ playerId: 849, name: "가영", race: "T", soopId: "", thumbUrl: "" }],
+            },
+            {
+              key: "baby",
+              label: "베이비",
+              players: [{ playerId: 6487, name: "빵체리", race: "P", soopId: "", thumbUrl: "" }],
+            },
+          ],
+        };
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+  const { context, elements } = createContext({ apiBase: "https://relay.example", fetchImpl });
+  vm.runInContext(source, context);
+  await vm.runInContext("loadTierTable()", context);
+  vm.runInContext("toggleTierLiveOnly()", context);
+  assert.match(elements.get("tierGroups").innerHTML, /가영/);
+  assert.match(elements.get("tierGroups").innerHTML, /빵체리/);
+  assert.match(elements.get("tierGroups").innerHTML, /faker1004\/1/);
+  assert.match(elements.get("tierGroups").innerHTML, /cherry123\/2/);
 });
 
 test("기록과 피드백이 브라우저 저장소에 유지된다", () => {
