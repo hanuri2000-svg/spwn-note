@@ -3,9 +3,11 @@ const PLAYER_KEY = "spawnNote.eloPlayer";
 const DASHBOARD_CACHE_KEY = "spawnNote.eloDashboard.v1";
 const RIVAL_PLAYER_KEY = "spawnNote.rivalPlayer";
 const RIVAL_OPPONENT_KEY = "spawnNote.rivalOpponent";
+const TIER_CACHE_KEY = "spawnNote.tierTable.v1";
 const LEGACY_STORAGE_KEY = "new" + "catsleSpawnNote.records.v1";
 const LEGACY_PLAYER_KEY = "new" + "catsleEloPlayer";
 const ELO_API_BASE = String(window.SPAWN_NOTE_ELO_API_BASE || "").replace(/\/$/, "");
+const LIVE_API_BASE = "https://dorang-live.hajimayo8130.workers.dev";
 
 let records = [];
 let eloPreviewRecords = [];
@@ -13,6 +15,17 @@ let eloDashboard = null;
 let eloDashboardPlayer = "";
 let eloDashboardLoading = false;
 let eloDashboardError = "";
+let tierPayload = null;
+let tierLive = {};
+let tierLoading = false;
+let tierLiveLoading = false;
+let tierError = "";
+let tierLiveStatus = "LIVE 확인 준비 중";
+let tierRace = "ALL";
+let tierLevels = new Set();
+let tierSearch = "";
+let tierLiveOnly = false;
+let tierRefreshTimer = null;
 
 const $ = (selector) => document.querySelector(selector);
 const form = document.getElementById("form");
@@ -117,6 +130,9 @@ function load() {
     eloDashboardPlayer = player;
   }
   loadBasePlayerInputs();
+  if (new URLSearchParams(location.search).get("embed") === "1") {
+    $("#tierTab")?.classList.add("hidden");
+  }
   renderAll();
   loadRivalInputs();
   if (player) refreshEloDashboard();
@@ -140,8 +156,11 @@ function renderAll() {
 function showTab(tab) {
   $("#dash").classList.toggle("hidden", tab !== "dash");
   $("#log").classList.toggle("hidden", tab !== "log");
+  $("#tier").classList.toggle("hidden", tab !== "tier");
   $("#dashTab").classList.toggle("active", tab === "dash");
   $("#logTab").classList.toggle("active", tab === "log");
+  $("#tierTab").classList.toggle("active", tab === "tier");
+  if (tab === "tier" && !tierPayload && !tierLoading) loadTierTable();
 }
 
 function renderDash() {
@@ -379,6 +398,198 @@ async function searchRival() {
   } finally {
     $("#rivalSearchButton").disabled = false;
   }
+}
+
+function readTierCache() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(TIER_CACHE_KEY) || "null");
+    return Array.isArray(cached?.tiers) ? cached : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeTierCache(data) {
+  try {
+    localStorage.setItem(TIER_CACHE_KEY, JSON.stringify(data));
+  } catch (error) {
+    console.warn("티어표 임시 저장에 실패했어.", error);
+  }
+}
+
+function tierProfileUrl(player) {
+  return player.playerId ? `https://eloboard.co.kr/players/${encodeURIComponent(player.playerId)}` : "#";
+}
+
+function tierPlayerCard(player) {
+  const liveUrl = player.soopId ? tierLive[player.soopId] : "";
+  const channelUrl = player.soopId ? `https://ch.sooplive.co.kr/${encodeURIComponent(player.soopId)}` : "";
+  const imageUrl = player.thumbUrl ? `https://eloboard.co.kr/static/${player.thumbUrl}` : "";
+  const avatarUrl = liveUrl || channelUrl || tierProfileUrl(player);
+  return `<div class="tier-player race-${esc(player.race)}">
+    <a class="tier-avatar-link" href="${esc(avatarUrl)}" target="_blank" rel="noopener noreferrer" title="${
+      liveUrl ? "현재 SOOP 방송 보기" : "선수 정보 보기"
+    }">
+      ${
+        imageUrl
+          ? `<img class="tier-avatar" src="${esc(imageUrl)}" alt="${esc(
+              player.name,
+            )} 프로필" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'">`
+          : ""
+      }
+      <span class="tier-avatar-fallback" style="${imageUrl ? "display:none" : ""}">${esc(
+        String(player.name || "?").slice(0, 1),
+      )}</span>
+    </a>
+    <b class="tier-race">${esc(player.race)}</b>
+    <a class="tier-player-name" href="${esc(tierProfileUrl(player))}" target="_blank" rel="noopener noreferrer">${esc(
+      player.name,
+    )}</a>
+    ${
+      liveUrl
+        ? `<a class="tier-live" href="${esc(
+            liveUrl,
+          )}" target="_blank" rel="noopener noreferrer">● LIVE</a>`
+        : ""
+    }
+  </div>`;
+}
+
+function renderTierTable() {
+  const status = $("#tierStatus");
+  const filterBox = $("#tierLevelFilters");
+  const groupBox = $("#tierGroups");
+  if (!status || !filterBox || !groupBox) return;
+
+  const tiers = Array.isArray(tierPayload?.tiers) ? tierPayload.tiers : [];
+  status.textContent = tierLoading
+    ? "ELOBOARD 최신 티어표를 불러오고 있어…"
+    : tierError ||
+      (tierPayload
+        ? `v${tierPayload.version || "-"} · ${tierPayload.updatedOn || "기준일 미상"} 기준 · ${tierLiveStatus}`
+        : "티어표를 열면 ELOBOARD 최신 자료를 확인해.");
+
+  filterBox.innerHTML = tiers.length
+    ? `<button class="${tierLevels.size ? "" : "active"}" onclick="toggleTierLevel('ALL')">전체</button>${tiers
+        .map(
+          (tier) =>
+            `<button class="${tierLevels.has(tier.label) ? "active" : ""}" onclick="toggleTierLevel('${esc(
+              tier.label,
+            )}')">${tierLevels.has(tier.label) ? "✓ " : ""}${esc(tier.label)}</button>`,
+        )
+        .join("")}`
+    : "";
+
+  document.querySelectorAll("[data-tier-race]").forEach((button) =>
+    button.classList.toggle("active", button.dataset.tierRace === tierRace),
+  );
+  $("#tierLiveOnly")?.classList.toggle("active", tierLiveOnly);
+  if ($("#tierLiveOnly")) {
+    $("#tierLiveOnly").textContent = tierLiveOnly ? "✓ LIVE만" : "○ LIVE만";
+    $("#tierLiveOnly").setAttribute?.("aria-pressed", String(tierLiveOnly));
+  }
+
+  const query = tierSearch.trim().toLowerCase();
+  const groups = tiers
+    .filter((tier) => !tierLevels.size || tierLevels.has(tier.label))
+    .map((tier) => {
+      const players = (tier.players || []).filter((player) => {
+        const live = player.soopId && tierLive[player.soopId];
+        return (
+          (tierRace === "ALL" || player.race === tierRace) &&
+          (!query || String(player.name || "").toLowerCase().includes(query)) &&
+          (!tierLiveOnly || live)
+        );
+      });
+      if (!players.length) return "";
+      return `<section class="tier-group"><header><h3>${esc(tier.label)}</h3><span>${
+        players.length
+      }명</span></header><div class="tier-players">${players.map(tierPlayerCard).join("")}</div></section>`;
+    })
+    .join("");
+
+  groupBox.innerHTML = groups || '<div class="empty tier-empty">조건에 맞는 선수가 없어</div>';
+  const refreshButton = $("#tierRefreshButton");
+  if (refreshButton) refreshButton.disabled = tierLoading || tierLiveLoading;
+}
+
+async function fetchTierLive() {
+  tierLiveLoading = true;
+  try {
+    const data = await fetchJson(`${LIVE_API_BASE}/?t=${Date.now()}`, { cache: "no-store" });
+    tierLive = Object.fromEntries(
+      (Array.isArray(data.live) ? data.live : [])
+        .filter((broadcast) => broadcast.soop_id)
+        .map((broadcast) => [
+          broadcast.soop_id,
+          broadcast.url || `https://ch.sooplive.co.kr/${broadcast.soop_id}`,
+        ]),
+    );
+    const checked = new Date(data.updatedAt || Date.now());
+    tierLiveStatus = `LIVE ${checked.toLocaleTimeString("ko-KR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    })} 확인 · 60초 자동 갱신`;
+  } catch {
+    tierLiveStatus = "LIVE 연결 실패 · 티어표는 정상 표시 중";
+  } finally {
+    tierLiveLoading = false;
+  }
+}
+
+async function loadTierTable(force = false) {
+  if (tierLoading) return;
+  if (!tierPayload) tierPayload = readTierCache();
+  if (!ELO_API_BASE) {
+    tierError = "ELO 조회 서버가 아직 연결되지 않았어.";
+    renderTierTable();
+    return;
+  }
+  tierLoading = true;
+  tierError = "";
+  renderTierTable();
+  try {
+    const requests = [fetchJson(`${ELO_API_BASE}/api/elo/tiers${force ? `?t=${Date.now()}` : ""}`), fetchTierLive()];
+    const [tierResult] = await Promise.allSettled(requests);
+    if (tierResult.status === "rejected") throw tierResult.reason;
+    tierPayload = tierResult.value;
+    writeTierCache(tierPayload);
+    if (!tierRefreshTimer) {
+      tierRefreshTimer = setInterval(() => {
+        if (!$("#tier")?.classList.contains("hidden")) fetchTierLive().then(renderTierTable);
+      }, 60000);
+    }
+  } catch (error) {
+    tierError = tierPayload
+      ? `${error.message} 저장된 티어표를 대신 표시하고 있어.`
+      : error.message;
+  } finally {
+    tierLoading = false;
+    renderTierTable();
+  }
+}
+
+function toggleTierLevel(level) {
+  if (level === "ALL") tierLevels.clear();
+  else if (tierLevels.has(level)) tierLevels.delete(level);
+  else tierLevels.add(level);
+  renderTierTable();
+}
+
+function setTierRace(race) {
+  tierRace = race;
+  renderTierTable();
+}
+
+function setTierSearch(value) {
+  tierSearch = value;
+  renderTierTable();
+}
+
+function toggleTierLiveOnly() {
+  tierLiveOnly = !tierLiveOnly;
+  renderTierTable();
 }
 
 function eloDetails(record) {
