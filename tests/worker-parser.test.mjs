@@ -98,6 +98,51 @@ test("상대전적 요약은 기준 선수 관점의 승패와 최근 경기를 
   assert.equal(result.recentMatches[0].result, "승");
 });
 
+test("대시보드 통계는 ELOBOARD 전체 공식전을 기간·상대 종족별로 계산한다", () => {
+  const result = __test.buildDashboardSummary(
+    mainProfile,
+    [
+      { race: "T", wins: 93, losses: 76, games: 169, win_rate: 55 },
+      { race: "Z", wins: 109, losses: 105, games: 214, win_rate: 50.9 },
+      { race: "P", wins: 2, losses: 4, games: 6, win_rate: 33.3 },
+    ],
+    [
+      match,
+      {
+        ...match,
+        id: 2868507,
+        played_on: "2026-09-08",
+        participants: [
+          { player_id: 830, name: "으니", race: "P", result: "win" },
+          { player_id: 833, name: "단솔", race: "P", result: "loss" },
+        ],
+      },
+      {
+        ...match,
+        id: 2112555,
+        played_on: "2026-08-30",
+        participants: [
+          { player_id: 833, name: "단솔", race: "P", result: "win" },
+          { player_id: 748, name: "루다", race: "Z", result: "loss" },
+        ],
+      },
+    ],
+    "2026-09-12",
+  );
+  assert.deepEqual(result.overall, { wins: 204, losses: 185, games: 389, winRate: 52.4 });
+  assert.equal(result.totalGames, 389);
+  assert.deepEqual(result.month, { wins: 1, losses: 1, games: 2, winRate: 50 });
+  assert.deepEqual(result.week, { wins: 1, losses: 1, games: 2, winRate: 50 });
+  assert.deepEqual(
+    result.races.map(({ race, wins, losses, games }) => ({ race, wins, losses, games })),
+    [
+      { race: "T", wins: 93, losses: 76, games: 169 },
+      { race: "Z", wins: 109, losses: 105, games: 214 },
+      { race: "P", wins: 2, losses: 4, games: 6 },
+    ],
+  );
+});
+
 test("ELOBOARD 서버 오류 문구를 구분한다", () => {
   assert.match(__test.pageError("database unavailable"), /접속자가 많아/);
   assert.match(__test.pageError("Site Unavailable"), /자동 조회를 제한/);
