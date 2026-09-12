@@ -1,5 +1,7 @@
 const STORAGE_KEY = "spawnNote.records.v1";
 const PLAYER_KEY = "spawnNote.eloPlayer";
+const RIVAL_PLAYER_KEY = "spawnNote.rivalPlayer";
+const RIVAL_OPPONENT_KEY = "spawnNote.rivalOpponent";
 const LEGACY_STORAGE_KEY = "new" + "catsleSpawnNote.records.v1";
 const LEGACY_PLAYER_KEY = "new" + "catsleEloPlayer";
 const ELO_API_BASE = String(window.SPAWN_NOTE_ELO_API_BASE || "").replace(/\/$/, "");
@@ -66,6 +68,7 @@ async function fetchJson(url, options) {
 function load() {
   records = readRecords();
   renderAll();
+  loadRivalInputs();
 }
 
 function pct(wins, total) {
@@ -144,6 +147,96 @@ function renderDash() {
 
 function card(heading, body, sub) {
   return `<div class="card"><h3>${heading}</h3><div class="big">${body}</div><div class="sub">${sub}</div></div>`;
+}
+
+function loadRivalInputs() {
+  const baseInput = $("#rivalPlayer");
+  const opponentInput = $("#rivalOpponent");
+  if (!baseInput || !opponentInput) return;
+  baseInput.value =
+    localStorage.getItem(RIVAL_PLAYER_KEY) ||
+    localStorage.getItem(PLAYER_KEY) ||
+    localStorage.getItem(LEGACY_PLAYER_KEY) ||
+    "";
+  opponentInput.value = localStorage.getItem(RIVAL_OPPONENT_KEY) || "";
+  $("#rivalStatus").textContent = ELO_API_BASE
+    ? "두 선수 이름을 입력하면 ELOBOARD 기준 상대전적을 확인할 수 있어."
+    : "ELO 조회 중계 서버가 아직 연결되지 않았어.";
+}
+
+function raceMark(race) {
+  return race ? `<span class="rival-race ${esc(race)}">${esc(race)}</span>` : "";
+}
+
+function renderRivalResult(data) {
+  const base = data.base || {};
+  const opponent = data.opponent || {};
+  const head = data.headToHead || {};
+  const recent = Array.isArray(data.recentMatches) ? data.recentMatches : [];
+  $("#rivalStatus").textContent = head.games
+    ? `ELOBOARD 전체 기록에서 ${head.games}경기를 찾았어.${
+        head.lastPlayedOn ? ` 최근 맞대결은 ${head.lastPlayedOn}이야.` : ""
+      }`
+    : "ELOBOARD에 두 선수의 맞대결 기록이 없어.";
+  $("#rivalResult").innerHTML = `
+    <div class="rival-scoreboard">
+      <div class="rival-player"><div>${raceMark(base.race)}<b>${esc(base.name)}</b></div><span>ELO ${esc(base.elo || "-")}</span></div>
+      <div class="rival-score"><b>${Number(head.wins || 0)}</b><em>:</em><b>${Number(head.losses || 0)}</b><span>${Number(head.winRate || 0)}% · ${Number(head.games || 0)}경기</span></div>
+      <div class="rival-player right"><div>${raceMark(opponent.race)}<b>${esc(opponent.name)}</b></div><span>ELO ${esc(opponent.elo || "-")}</span></div>
+    </div>
+    <div class="rival-overall">
+      <span><b>${esc(base.name)}</b> 통산 ${Number(base.wins || 0)}승 ${Number(base.losses || 0)}패 · ${Number(base.winRate || 0)}%</span>
+      <span><b>${esc(opponent.name)}</b> 통산 ${Number(opponent.wins || 0)}승 ${Number(opponent.losses || 0)}패 · ${Number(opponent.winRate || 0)}%</span>
+    </div>
+    <div class="rival-recent">
+      <h3>최근 맞대결</h3>
+      ${
+        recent.length
+          ? recent
+              .map(
+                (match) =>
+                  `<div class="${match.result === "승" ? "win" : "lose"}"><b>${esc(
+                    match.result,
+                  )}</b> · ${esc(match.date)} · ${esc(match.map || "-")} · ${esc(match.type || "-")}</div>`,
+              )
+              .join("")
+          : '<div class="empty rival-empty">최근 경기 정보가 없어</div>'
+      }
+    </div>`;
+  $("#rivalResult").classList.remove("hidden");
+}
+
+async function searchRival() {
+  const player = $("#rivalPlayer").value.trim();
+  const opponent = $("#rivalOpponent").value.trim();
+  if (!player || !opponent) {
+    $("#rivalStatus").textContent = "기준 선수와 상대 선수 이름을 모두 입력해줘.";
+    return;
+  }
+  if (normalizeName(player) === normalizeName(opponent)) {
+    $("#rivalStatus").textContent = "서로 다른 선수 이름을 입력해줘.";
+    return;
+  }
+  if (!ELO_API_BASE) {
+    $("#rivalStatus").textContent = "ELO 조회 서버가 아직 연결되지 않았어.";
+    return;
+  }
+
+  localStorage.setItem(RIVAL_PLAYER_KEY, player);
+  localStorage.setItem(RIVAL_OPPONENT_KEY, opponent);
+  localStorage.setItem(PLAYER_KEY, player);
+  $("#rivalSearchButton").disabled = true;
+  $("#rivalStatus").textContent = "ELOBOARD에서 상대전적을 확인하고 있어…";
+  $("#rivalResult").classList.add("hidden");
+  try {
+    const query = new URLSearchParams({ player, opponent });
+    renderRivalResult(await fetchJson(`${ELO_API_BASE}/api/elo/rival?${query}`));
+  } catch (error) {
+    $("#rivalStatus").textContent = error.message;
+    $("#rivalResult").innerHTML = "";
+  } finally {
+    $("#rivalSearchButton").disabled = false;
+  }
 }
 
 function eloDetails(record) {
@@ -378,8 +471,8 @@ async function previewElo() {
   const player = $("#eloPlayer").value.trim();
   const fromDate = $("#eloFromDate").value;
   const pages = $("#eloPages").value;
-  if (player.length < 2) {
-    alert("선수 이름을 두 글자 이상 입력해줘.");
+  if (!player) {
+    alert("선수 이름을 입력해줘.");
     return;
   }
   if (!ELO_API_BASE) {
@@ -414,10 +507,10 @@ function renderEloPreview(data = {}) {
   const checkedMatches = Number(data.checkedMatches || eloPreviewRecords.length);
   const fromDate = $("#eloFromDate").value;
   $("#eloStatus").textContent = eloPreviewRecords.length
-    ? `선수 개인 페이지에서 ${checkedMatches}경기를 확인해 ${eloPreviewRecords.length}경기를 찾았어. 새 기록 ${newCount}개, 기존 기록과 겹치는 항목 ${duplicateCount}개야.`
+    ? `ELOBOARD 스폰 전적 ${checkedMatches}경기를 확인해 ${eloPreviewRecords.length}경기를 찾았어. 새 기록 ${newCount}개, 기존 기록과 겹치는 항목 ${duplicateCount}개야.`
     : data.latestAvailableDate && fromDate > data.latestAvailableDate
       ? `개인 페이지의 최신 전적은 ${data.latestAvailableDate}이야. 조회 시작 날짜를 그 날짜 이전으로 바꿔줘.`
-      : "선수 개인 페이지를 확인했지만 조건에 맞는 전적이 없어. 조회 시작 날짜를 더 이전으로 조정해봐.";
+      : "선수의 스폰 전적을 확인했지만 조건에 맞는 기록이 없어. 조회 시작 날짜를 더 이전으로 조정해봐.";
 
   $("#eloPreviewBody").innerHTML =
     eloPreviewRecords

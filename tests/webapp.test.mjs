@@ -6,7 +6,7 @@ import vm from "node:vm";
 function createElement() {
   return {
     checked: false,
-    classList: { toggle() {} },
+    classList: { add() {}, remove() {}, toggle() {} },
     close() {},
     disabled: false,
     files: [],
@@ -18,7 +18,7 @@ function createElement() {
   };
 }
 
-function createContext() {
+function createContext({ apiBase = "", fetchImpl = fetch } = {}) {
   const storage = new Map();
   const elements = new Map();
   for (const id of [
@@ -39,6 +39,11 @@ function createContext() {
     "eloImportButton",
     "eloSelectAll",
     "eloLookupButton",
+    "rivalPlayer",
+    "rivalOpponent",
+    "rivalStatus",
+    "rivalResult",
+    "rivalSearchButton",
     "formTitle",
   ]) {
     elements.set(id, createElement());
@@ -92,7 +97,7 @@ function createContext() {
         return [];
       },
     },
-    fetch,
+    fetch: fetchImpl,
     localStorage: {
       getItem(key) {
         return storage.has(key) ? storage.get(key) : null;
@@ -107,11 +112,11 @@ function createContext() {
     navigator: {},
     setTimeout,
     window: {
-      SPAWN_NOTE_ELO_API_BASE: "",
+      SPAWN_NOTE_ELO_API_BASE: apiBase,
       addEventListener() {},
     },
   });
-  return { context, storage };
+  return { context, elements, storage };
 }
 
 const source = fs.readFileSync(new URL("../ui.js", import.meta.url), "utf8");
@@ -120,7 +125,10 @@ test("공용 이름과 화면 버전을 표시한다", () => {
   const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
   const manifest = fs.readFileSync(new URL("../manifest.webmanifest", import.meta.url), "utf8");
   assert.match(html, />스폰노트 /);
-  assert.match(html, />v1\.1\.4</);
+  assert.match(html, />v1\.2\.0</);
+  assert.match(html, /ELOBOARD 상대전적 검색/);
+  assert.match(html, /id="rivalPlayer"/);
+  assert.match(html, /id="rivalOpponent"/);
   const oldBrand = new RegExp(["NEW", "CATSLE"].join("\\s*") + "|뉴" + "캣슬", "i");
   assert.doesNotMatch(`${html}\n${manifest}`, oldBrand);
 });
@@ -163,4 +171,26 @@ test("날짜·상대·승패·맵이 같은 ELO 기록은 중복 처리한다", 
     context,
   );
   assert.equal(duplicate, true);
+});
+
+test("대시보드에서 두 선수의 ELO 상대전적을 조회해 표시한다", async () => {
+  const fetchImpl = async () =>
+    new Response(
+      JSON.stringify({
+        base: { name: "단솔", race: "P", elo: "928.7", wins: 204, losses: 185, winRate: 52.4 },
+        opponent: { name: "이응씨", race: "T", elo: "844.8", wins: 134, losses: 209, winRate: 39.1 },
+        headToHead: { wins: 47, losses: 23, games: 70, winRate: 67.1, lastPlayedOn: "2026-09-10" },
+        recentMatches: [{ id: "1", date: "2026-09-10", result: "승", map: "라데온", type: "스폰 · 단판" }],
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  const { context, elements } = createContext({ apiBase: "https://relay.example", fetchImpl });
+  vm.runInContext(source, context);
+  elements.get("rivalPlayer").value = "단솔";
+  elements.get("rivalOpponent").value = "이응씨";
+  await vm.runInContext("searchRival()", context);
+  assert.match(elements.get("rivalStatus").textContent, /70경기/);
+  assert.match(elements.get("rivalResult").innerHTML, /47/);
+  assert.match(elements.get("rivalResult").innerHTML, /이응씨/);
+  assert.match(elements.get("rivalResult").innerHTML, /라데온/);
 });

@@ -4,6 +4,9 @@
   "main": "src/index.js",
   "compatibility_date": "2026-09-12",
   "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "ALLOWED_ORIGIN": "https://hanuri2000-svg.github.io"
+  },
   "observability": {
     "enabled": true
   }
