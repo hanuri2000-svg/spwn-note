@@ -140,7 +140,7 @@ test("공용 이름과 화면 버전을 표시한다", () => {
   const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
   const manifest = fs.readFileSync(new URL("../manifest.webmanifest", import.meta.url), "utf8");
   assert.match(html, />스폰노트 /);
-  assert.match(html, />v1\.4\.5</);
+  assert.match(html, />v1\.4\.6</);
   assert.match(html, /기준 선수의 ELOBOARD 전체 공식전을 기준으로\s*집계·표시됩니다\./);
   assert.match(html, /id="basePlayer"/);
   assert.match(html, /id="tierTab"/);
@@ -160,7 +160,7 @@ test("NEW CATSLE 배경은 독립 화면에만 표시한다", () => {
   assert.match(html, /documentElement\.classList\.add\("embed-mode"\)/);
   assert.match(html, /\.\/assets\/brand-watermark\.png/);
   assert.match(html, /opacity: 0\.12/);
-  assert.match(serviceWorker, /spawn-note-v1\.4\.5/);
+  assert.match(serviceWorker, /spawn-note-v1\.4\.6/);
   assert.match(serviceWorker, /\.\/assets\/brand-watermark\.png/);
 });
 
