@@ -31,6 +31,9 @@ function createContext({ apiBase = "", fetchImpl = fetch } = {}) {
     "dashTab",
     "logTab",
     "search",
+    "basePlayer",
+    "basePlayerSaveButton",
+    "basePlayerStatus",
     "eloPlayer",
     "eloFromDate",
     "eloPages",
@@ -40,6 +43,7 @@ function createContext({ apiBase = "", fetchImpl = fetch } = {}) {
     "eloSelectAll",
     "eloLookupButton",
     "rivalPlayer",
+    "rivalBaseName",
     "rivalOpponent",
     "rivalStatus",
     "rivalResult",
@@ -125,7 +129,8 @@ test("공용 이름과 화면 버전을 표시한다", () => {
   const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
   const manifest = fs.readFileSync(new URL("../manifest.webmanifest", import.meta.url), "utf8");
   assert.match(html, />스폰노트 /);
-  assert.match(html, />v1\.2\.0</);
+  assert.match(html, />v1\.3\.0</);
+  assert.match(html, /id="basePlayer"/);
   assert.match(html, /ELOBOARD 상대전적 검색/);
   assert.match(html, /id="rivalPlayer"/);
   assert.match(html, /id="rivalOpponent"/);
@@ -174,23 +179,70 @@ test("날짜·상대·승패·맵이 같은 ELO 기록은 중복 처리한다", 
 });
 
 test("대시보드에서 두 선수의 ELO 상대전적을 조회해 표시한다", async () => {
-  const fetchImpl = async () =>
-    new Response(
-      JSON.stringify({
+  const fetchImpl = async (url) => {
+    const data = String(url).includes("/api/elo/dashboard")
+      ? {
+          player: { name: "단솔", race: "P", raceLabel: "토스", elo: "928.7" },
+          overall: { wins: 204, losses: 185, games: 389, winRate: 52.4 },
+          month: { wins: 8, losses: 7, games: 15, winRate: 53.3 },
+          week: { wins: 3, losses: 2, games: 5, winRate: 60 },
+          totalGames: 389,
+          races: [],
+          latestMatchDate: "2026-09-10",
+        }
+      : {
         base: { name: "단솔", race: "P", elo: "928.7", wins: 204, losses: 185, winRate: 52.4 },
         opponent: { name: "이응씨", race: "T", elo: "844.8", wins: 134, losses: 209, winRate: 39.1 },
         headToHead: { wins: 47, losses: 23, games: 70, winRate: 67.1, lastPlayedOn: "2026-09-10" },
         recentMatches: [{ id: "1", date: "2026-09-10", result: "승", map: "라데온", type: "스폰 · 단판" }],
-      }),
+      };
+    return new Response(
+      JSON.stringify(data),
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
+  };
   const { context, elements } = createContext({ apiBase: "https://relay.example", fetchImpl });
   vm.runInContext(source, context);
-  elements.get("rivalPlayer").value = "단솔";
+  elements.get("basePlayer").value = "단솔";
+  await vm.runInContext("saveBasePlayer()", context);
   elements.get("rivalOpponent").value = "이응씨";
   await vm.runInContext("searchRival()", context);
   assert.match(elements.get("rivalStatus").textContent, /70경기/);
   assert.match(elements.get("rivalResult").innerHTML, /47/);
   assert.match(elements.get("rivalResult").innerHTML, /이응씨/);
   assert.match(elements.get("rivalResult").innerHTML, /라데온/);
+});
+
+test("저장한 기준 선수의 ELOBOARD 전체 공식전 통계를 대시보드에 표시한다", async () => {
+  const fetchImpl = async () =>
+    new Response(
+      JSON.stringify({
+        player: { name: "단솔", race: "P", raceLabel: "토스", elo: "928.7" },
+        overall: { wins: 204, losses: 185, games: 389, winRate: 52.4 },
+        month: { wins: 8, losses: 7, games: 15, winRate: 53.3 },
+        week: { wins: 3, losses: 2, games: 5, winRate: 60 },
+        totalGames: 389,
+        races: [
+          { race: "T", wins: 93, losses: 76, games: 169, winRate: 55 },
+          { race: "Z", wins: 109, losses: 105, games: 214, winRate: 50.9 },
+          { race: "P", wins: 2, losses: 4, games: 6, winRate: 33.3 },
+        ],
+        latestMatchDate: "2026-09-10",
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  const { context, elements, storage } = createContext({
+    apiBase: "https://relay.example",
+    fetchImpl,
+  });
+  vm.runInContext(source, context);
+  elements.get("basePlayer").value = "단솔";
+  await vm.runInContext("saveBasePlayer()", context);
+  assert.equal(storage.get("spawnNote.eloPlayer"), "단솔");
+  assert.match(elements.get("cards").innerHTML, /204승 185패/);
+  assert.match(elements.get("cards").innerHTML, /389경기/);
+  assert.match(elements.get("cards").innerHTML, /8승 7패/);
+  assert.match(elements.get("races").innerHTML, /93승 76패/);
+  assert.equal(elements.get("rivalBaseName").textContent, "단솔");
+  assert.equal(elements.get("eloPlayer").value, "단솔");
 });
