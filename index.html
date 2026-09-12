@@ -798,6 +798,21 @@
         line-height: 1.6;
         text-align: center;
       }
+      .site-credit {
+        padding: 4px 20px 24px;
+        color: #795f70;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.7px;
+        text-align: center;
+      }
+      .site-credit span {
+        color: #8b5574;
+        font-weight: 900;
+      }
+      html.embed-mode .site-credit {
+        display: none;
+      }
     </style>
     <style>
       .game-row td {
@@ -891,7 +906,7 @@
     <header>
       <div class="brand">
         <div class="brandtext">
-          <h1>스폰노트 <span class="version-badge">v1.4.2</span></h1>
+          <h1>스폰노트 <span class="version-badge">v1.4.3</span></h1>
           <div class="brand-subtitle">STARCRAFT RECORD</div>
         </div>
       </div>
@@ -1131,6 +1146,9 @@
         </div>
       </section>
     </main>
+    <footer class="site-credit" aria-label="제작자">
+      made by <span>라비c</span>
+    </footer>
     <dialog id="eloDlg" class="elo-dialog">
       <div class="modalhead"><h2>ELOBOARD 전적 가져오기</h2></div>
       <div class="elo-controls">

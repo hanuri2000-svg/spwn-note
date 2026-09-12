@@ -140,7 +140,7 @@ test("공용 이름과 화면 버전을 표시한다", () => {
   const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
   const manifest = fs.readFileSync(new URL("../manifest.webmanifest", import.meta.url), "utf8");
   assert.match(html, />스폰노트 /);
-  assert.match(html, />v1\.4\.2</);
+  assert.match(html, />v1\.4\.3</);
   assert.match(html, /id="basePlayer"/);
   assert.match(html, /id="tierTab"/);
   assert.match(html, /id="tierGroups"/);
@@ -159,8 +159,14 @@ test("NEW CATSLE 배경은 독립 화면에만 표시한다", () => {
   assert.match(html, /documentElement\.classList\.add\("embed-mode"\)/);
   assert.match(html, /\.\/assets\/brand-watermark\.png/);
   assert.match(html, /opacity: 0\.12/);
-  assert.match(serviceWorker, /spawn-note-v1\.4\.2/);
+  assert.match(serviceWorker, /spawn-note-v1\.4\.3/);
   assert.match(serviceWorker, /\.\/assets\/brand-watermark\.png/);
+});
+
+test("제작자 표기는 독립 화면 하단에만 표시한다", () => {
+  const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  assert.match(html, /<footer class="site-credit"[^>]*>[\s\S]*made by <span>라비c<\/span>/);
+  assert.match(html, /html\.embed-mode \.site-credit\s*{[\s\S]*?display: none/);
 });
 
 test("ELOBOARD 티어표를 불러와 복수 티어와 LIVE 상태를 표시한다", async () => {
