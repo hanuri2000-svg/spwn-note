@@ -1,6 +1,8 @@
-const STORAGE_KEY = "newcatsleSpawnNote.records.v1";
-const PLAYER_KEY = "newcatsleEloPlayer";
-const ELO_API_BASE = String(window.NEWCATSLE_ELO_API_BASE || "").replace(/\/$/, "");
+const STORAGE_KEY = "spawnNote.records.v1";
+const PLAYER_KEY = "spawnNote.eloPlayer";
+const LEGACY_STORAGE_KEY = "new" + "catsleSpawnNote.records.v1";
+const LEGACY_PLAYER_KEY = "new" + "catsleEloPlayer";
+const ELO_API_BASE = String(window.SPAWN_NOTE_ELO_API_BASE || "").replace(/\/$/, "");
 
 let records = [];
 let eloPreviewRecords = [];
@@ -32,7 +34,12 @@ function cleanRecord(record) {
 
 function readRecords() {
   try {
-    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    const current = localStorage.getItem(STORAGE_KEY);
+    const legacy = current == null ? localStorage.getItem(LEGACY_STORAGE_KEY) : null;
+    const stored = JSON.parse(current ?? legacy ?? "[]");
+    if (current == null && legacy != null && Array.isArray(stored)) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+    }
     return Array.isArray(stored) ? stored.map(cleanRecord) : [];
   } catch (error) {
     console.error("저장된 기록을 읽지 못했어.", error);
@@ -249,7 +256,7 @@ function download(name, text, type) {
 }
 
 function exportJson() {
-  download("NEWCATSLE_스폰노트_백업.json", JSON.stringify(records, null, 2), "application/json");
+  download("스폰노트_백업.json", JSON.stringify(records, null, 2), "application/json");
 }
 
 function exportCsv() {
@@ -281,7 +288,7 @@ function exportCsv() {
   ];
   const quote = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
   download(
-    "NEWCATSLE_스폰노트.csv",
+    "스폰노트.csv",
     [heads.map(quote).join(","), ...records.map((record) => keys.map((key) => quote(record[key])).join(","))].join("\r\n"),
     "text/csv",
   );
@@ -347,7 +354,9 @@ function markDuplicates(items) {
 
 function openEloDialog() {
   eloPreviewRecords = [];
-  $("#eloPlayer").value = localStorage.getItem(PLAYER_KEY) || "";
+  const savedPlayer = localStorage.getItem(PLAYER_KEY) || localStorage.getItem(LEGACY_PLAYER_KEY) || "";
+  $("#eloPlayer").value = savedPlayer;
+  if (savedPlayer && !localStorage.getItem(PLAYER_KEY)) localStorage.setItem(PLAYER_KEY, savedPlayer);
   const latestDate = [...records]
     .map((record) => record.date)
     .filter(Boolean)

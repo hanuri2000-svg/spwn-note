@@ -3,19 +3,18 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>NEW CATSLE 스폰노트</title>
-    <meta name="theme-color" content="#312b69" />
+    <title>스폰노트</title>
+    <meta name="theme-color" content="#a85f82" />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="icon" href="./logo.png" type="image/png" />
     <style>
       :root {
-        --violet: #6556b8;
-        --violet2: #312b69;
-        --navy: #171a3c;
-        --silver: #e8eafa;
-        --cyan: #41bde8;
-        --line: #dcdcf0;
-        --win: #edfff8;
+        --rose: #b86f91;
+        --rose-deep: #8f5576;
+        --lavender: #8c78ad;
+        --plum: #60485d;
+        --cream: #fff9fb;
+        --line: #eadbe5;
+        --win: #effaf5;
         --lose: #fff1f5;
       }
       * {
@@ -23,50 +22,59 @@
       }
       body {
         margin: 0;
-        font-family: "Malgun Gothic", Arial, sans-serif;
-        color: #252547;
+        font-family: "Pretendard", "Malgun Gothic", Arial, sans-serif;
+        color: #523f4c;
         background:
-          radial-gradient(circle at 85% 5%, #dcd8ff 0, transparent 27%),
-          linear-gradient(150deg, #f9f9ff, #f0f1fb);
+          radial-gradient(circle at 8% 4%, #f7dce9 0, transparent 30%),
+          radial-gradient(circle at 92% 12%, #e9dff5 0, transparent 28%),
+          linear-gradient(150deg, #fffafb, #f8f2f7 55%, #f5f0fa);
         min-height: 100vh;
       }
       header {
         background: linear-gradient(
           120deg,
-          #171a3c 0%,
-          #312b69 55%,
-          #6556b8 100%
+          #8f5576 0%,
+          #a86586 52%,
+          #8c78ad 100%
         );
         color: white;
         padding: 14px 28px;
         display: flex;
         align-items: center;
         justify-content: space-between;
-        box-shadow: 0 8px 28px #15153744;
-        border-bottom: 2px solid #9f97e4;
+        box-shadow: 0 10px 32px #71455d30;
+        border-bottom: 1px solid #f2cadc;
       }
       .brand {
         display: flex;
         align-items: center;
-        gap: 15px;
-      }
-      .brand img {
-        width: 72px;
-        height: 82px;
-        object-fit: contain;
-        filter: drop-shadow(0 4px 7px #0007);
+        gap: 12px;
       }
       .brandtext h1 {
         margin: 0;
-        font-size: 25px;
-        letter-spacing: -0.5px;
+        font-size: 27px;
+        letter-spacing: -1px;
       }
-      .newcatsle {
-        font-weight: 900;
-        letter-spacing: 4px;
-        color: #dcd8ff;
+      .brand-subtitle {
+        font-weight: 700;
+        letter-spacing: 2.5px;
+        color: #f8e7ef;
         font-size: 12px;
         margin-top: 5px;
+      }
+      .version-badge {
+        display: inline-flex;
+        align-items: center;
+        margin-left: 8px;
+        padding: 3px 8px;
+        border: 1px solid #ffffff50;
+        border-radius: 999px;
+        background: #ffffff1f;
+        color: #fff;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0;
+        vertical-align: 1px;
       }
       .headright {
         display: flex;
@@ -78,7 +86,7 @@
         border: 1px solid #ffffff38;
         border-radius: 999px;
         background: #ffffff12;
-        color: #e9e7ff;
+        color: #fff4f8;
         font-size: 12px;
         font-weight: 700;
         white-space: nowrap;
@@ -120,7 +128,7 @@
       }
       .tabs button.active {
         background: white;
-        color: var(--violet2);
+        color: var(--rose-deep);
       }
       main {
         padding: 22px;
@@ -137,39 +145,39 @@
         margin-bottom: 18px;
       }
       .card {
-        background: linear-gradient(150deg, #fff, #f6f5ff);
+        background: linear-gradient(150deg, #fff, #fff7fa);
         border: 1px solid var(--line);
-        border-radius: 15px;
-        padding: 17px;
-        box-shadow: 0 7px 22px #29255d12;
-        border-top: 3px solid #8175cf;
+        border-radius: 20px;
+        padding: 18px;
+        box-shadow: 0 9px 26px #87556d14;
+        border-top: 3px solid #d78faf;
       }
       .card h3 {
         margin: 0 0 9px;
-        color: #5c5590;
+        color: #9a627e;
         font-size: 14px;
       }
       .big {
         font-size: 24px;
         font-weight: 900;
-        color: #25204f;
+        color: #60485d;
       }
       .sub {
         margin-top: 5px;
-        color: #777394;
+        color: #987d8d;
       }
       .section {
-        background: #ffffffde;
+        background: #ffffffea;
         border: 1px solid var(--line);
-        border-radius: 15px;
-        padding: 18px;
+        border-radius: 20px;
+        padding: 20px;
         margin-bottom: 16px;
-        box-shadow: 0 7px 24px #29255d0d;
+        box-shadow: 0 9px 28px #87556d10;
       }
       .section h2 {
         margin: 0 0 13px;
         font-size: 18px;
-        color: #312b69;
+        color: #7c506b;
       }
       .races {
         display: grid;
@@ -177,9 +185,9 @@
         gap: 12px;
       }
       .race {
-        background: linear-gradient(140deg, #f1f0ff, #f9faff);
-        border: 1px solid #e0def3;
-        border-radius: 11px;
+        background: linear-gradient(140deg, #fff4f8, #faf5ff);
+        border: 1px solid #eddde7;
+        border-radius: 15px;
         padding: 14px;
       }
       .toolbar {
@@ -189,21 +197,39 @@
         margin-bottom: 14px;
       }
       .btn {
-        background: linear-gradient(135deg, #6556b8, #4c3f9c);
+        background: linear-gradient(135deg, #bd7295, #9a648d);
         color: white;
+        border-radius: 999px;
+        box-shadow: 0 5px 14px #9b5f7b22;
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
+      }
+      .btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 7px 18px #9b5f7b33;
       }
       .btn.secondary {
-        background: #ebeaf6;
-        color: #39336b;
+        background: #f4e9ef;
+        color: #765267;
+        box-shadow: none;
       }
       .btn.danger {
-        background: #d95773;
+        background: #d66f88;
       }
       .search {
         padding: 10px;
         border: 1px solid var(--line);
-        border-radius: 9px;
+        border-radius: 999px;
         min-width: 220px;
+        background: #fffbfd;
+        color: #5e4755;
+        outline: none;
+      }
+      .search:focus,
+      .field input:focus,
+      .field select:focus,
+      .field textarea:focus {
+        border-color: #c982a4;
+        box-shadow: 0 0 0 3px #edcddd66;
       }
       table {
         width: 100%;
@@ -212,7 +238,7 @@
         font-size: 13px;
       }
       th {
-        background: #312b69;
+        background: #9d607f;
         color: white;
         position: sticky;
         top: 0;
@@ -221,20 +247,20 @@
       th,
       td {
         padding: 9px 8px;
-        border-right: 1px solid #e1e0ed;
-        border-bottom: 1px solid #e1e0ed;
+        border-right: 1px solid #eadde4;
+        border-bottom: 1px solid #eadde4;
         text-align: left;
         white-space: nowrap;
       }
       tbody tr:hover {
-        outline: 2px solid #aaa2e1;
+        outline: 2px solid #d6a0b8;
         outline-offset: -2px;
       }
       .tablewrap {
         overflow: auto;
         max-height: 68vh;
         border: 1px solid var(--line);
-        border-radius: 10px;
+        border-radius: 15px;
       }
       .win {
         background: var(--win);
@@ -244,17 +270,17 @@
       }
       dialog {
         border: 0;
-        border-radius: 16px;
+        border-radius: 22px;
         padding: 0;
-        box-shadow: 0 20px 60px #17152f66;
+        box-shadow: 0 24px 70px #60485d55;
         width: min(900px, 94vw);
       }
       dialog::backdrop {
-        background: #17152f99;
+        background: #49354199;
       }
       .modalhead {
         padding: 16px 20px;
-        background: linear-gradient(120deg, #171a3c, #6556b8);
+        background: linear-gradient(120deg, #9a5d7c, #8c78ad);
         color: white;
       }
       .modalhead h2 {
@@ -270,7 +296,7 @@
         display: block;
         font-size: 12px;
         font-weight: 700;
-        color: #555076;
+        color: #795a6c;
         margin-bottom: 5px;
       }
       .field input,
@@ -278,8 +304,9 @@
       .field textarea {
         width: 100%;
         padding: 9px;
-        border: 1px solid #d6d3e7;
-        border-radius: 8px;
+        border: 1px solid #e4d4de;
+        border-radius: 12px;
+        background: #fffbfd;
       }
       .span2 {
         grid-column: span 2;
@@ -298,12 +325,12 @@
       .recent div {
         padding: 10px 12px;
         border-radius: 8px;
-        border-left: 4px solid #8175cf;
+        border-left: 4px solid #d78faf;
       }
       .empty {
         text-align: center;
         padding: 35px;
-        color: #817c9b;
+        color: #9b7d8e;
       }
       @media (max-width: 1000px) {
         header {
@@ -329,10 +356,6 @@
           align-items: flex-start;
           width: 100%;
         }
-        .brand img {
-          width: 58px;
-          height: 65px;
-        }
         .form {
           grid-template-columns: 1fr;
         }
@@ -344,10 +367,10 @@
       .notice {
         margin: 18px 2px 5px;
         padding: 13px 16px;
-        border: 1px solid #d6d3eb;
-        border-radius: 11px;
-        background: #f5f4ff;
-        color: #5e5980;
+        border: 1px solid #ead9e4;
+        border-radius: 15px;
+        background: #fff6fa;
+        color: #806374;
         font-size: 13px;
         line-height: 1.6;
         text-align: center;
@@ -371,26 +394,26 @@
         display: inline-block;
         margin: 4px 0 6px;
         padding: 4px 9px;
-        border-radius: 6px;
-        background: #6556b8;
+        border-radius: 999px;
+        background: #b86f91;
         color: #fff;
         font-weight: 800;
         font-size: 12px;
       }
       .note-label.feedback-label {
         margin-top: 12px;
-        background: #347c94;
+        background: #8c78ad;
       }
       .note-text {
         width: 100%;
         padding: 11px 13px;
-        border: 1px solid #d8d5eb;
-        border-radius: 9px;
-        background: #fff;
+        border: 1px solid #ead9e3;
+        border-radius: 13px;
+        background: #fffcfd;
         line-height: 1.65;
         overflow-wrap: anywhere;
         word-break: break-word;
-        color: #38345c;
+        color: #594451;
         min-height: 42px;
       }
     </style>
@@ -399,12 +422,12 @@
         cursor: pointer;
       }
       .game-row:hover td {
-        background: #ece9ff;
+        background: #fbeaf2;
       }
       .game-row td:first-child::before {
         content: "▸";
         margin-right: 6px;
-        color: #6556b8;
+        color: #bd7295;
         font-weight: 900;
       }
       .note-row td {
@@ -427,12 +450,12 @@
         white-space: nowrap !important;
         overflow: hidden;
         text-overflow: ellipsis;
-        color: #4c4672;
+        color: #765568;
         font-weight: 600;
       }
       .note-preview::after {
         content: "  ▾";
-        color: #6556b8;
+        color: #bd7295;
         font-weight: 900;
       }
     </style>
@@ -440,13 +463,9 @@
   <body>
     <header>
       <div class="brand">
-        <img
-          src="./logo.png"
-          alt="NEW CATSLE 로고"
-        />
         <div class="brandtext">
-          <h1>NEW CATSLE 스폰노트</h1>
-          <div class="newcatsle">NEWCATSLE · STARCRAFT RECORD</div>
+          <h1>스폰노트 <span class="version-badge">v1.1.0</span></h1>
+          <div class="brand-subtitle">MY STARCRAFT RECORD</div>
         </div>
       </div>
       <div class="headright">
@@ -457,7 +476,6 @@
           ><button id="logTab" onclick="showTab('log')">스폰일지</button>
         </div>
       </div>
-    </header>
     <main>
       <style>
         .elo-badge {
@@ -465,8 +483,8 @@
           margin-left: 5px;
           padding: 2px 6px;
           border-radius: 999px;
-          background: #41bde8;
-          color: #102946;
+          background: #e9d7ef;
+          color: #735883;
           font-size: 10px;
           font-weight: 900;
           vertical-align: middle;
@@ -475,8 +493,8 @@
           margin: 6px 0 10px;
           padding: 9px 11px;
           border-radius: 8px;
-          background: #e9f8ff;
-          color: #23506b;
+          background: #f8effb;
+          color: #715878;
           font-size: 12px;
           font-weight: 700;
         }
@@ -494,15 +512,15 @@
         .elo-controls .field select {
           width: 100%;
           padding: 9px;
-          border: 1px solid #d6d3e7;
-          border-radius: 8px;
+          border: 1px solid #e4d4de;
+          border-radius: 12px;
         }
         .elo-status {
           margin: 0 18px 12px;
           padding: 10px 12px;
           border-radius: 8px;
-          background: #f1f0ff;
-          color: #514a84;
+          background: #fff1f6;
+          color: #815b70;
           font-size: 13px;
         }
         .elo-tablewrap {
@@ -510,7 +528,7 @@
           max-height: 48vh;
           overflow: auto;
           border: 1px solid var(--line);
-          border-radius: 10px;
+          border-radius: 15px;
         }
         .elo-tablewrap th,
         .elo-tablewrap td {
@@ -529,7 +547,7 @@
         }
         .elo-help {
           font-size: 12px;
-          color: #777394;
+          color: #927588;
         }
         @media (max-width: 850px) {
           .elo-controls {

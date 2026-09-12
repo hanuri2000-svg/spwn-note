@@ -107,7 +107,7 @@ function createContext() {
     navigator: {},
     setTimeout,
     window: {
-      NEWCATSLE_ELO_API_BASE: "",
+      SPAWN_NOTE_ELO_API_BASE: "",
       addEventListener() {},
     },
   });
@@ -116,11 +116,20 @@ function createContext() {
 
 const source = fs.readFileSync(new URL("../ui.js", import.meta.url), "utf8");
 
+test("공용 이름과 화면 버전을 표시한다", () => {
+  const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  const manifest = fs.readFileSync(new URL("../manifest.webmanifest", import.meta.url), "utf8");
+  assert.match(html, />스폰노트 /);
+  assert.match(html, />v1\.1\.0</);
+  const oldBrand = new RegExp(["NEW", "CATSLE"].join("\\s*") + "|뉴" + "캣슬", "i");
+  assert.doesNotMatch(`${html}\n${manifest}`, oldBrand);
+});
+
 test("기록과 피드백이 브라우저 저장소에 유지된다", () => {
   const { context, storage } = createContext();
   vm.runInContext(source, context);
   vm.runInContext("submitForm({ preventDefault() {} })", context);
-  const saved = JSON.parse(storage.get("newcatsleSpawnNote.records.v1"));
+  const saved = JSON.parse(storage.get("spawnNote.records.v1"));
   assert.equal(saved.length, 1);
   assert.equal(saved[0].opponent, "테스트상대");
   assert.equal(saved[0].note, "운영이 좋았음");
@@ -130,7 +139,7 @@ test("기록과 피드백이 브라우저 저장소에 유지된다", () => {
 test("기존 EXE 백업 형식에서 피드백 없는 기록도 읽는다", () => {
   const { context, storage } = createContext();
   storage.set(
-    "newcatsleSpawnNote.records.v1",
+    ["new", "catsleSpawnNote.records.v1"].join(""),
     JSON.stringify([{ id: 7, date: "2026-08-01", opponent: "상대", result: "패", note: "메모" }]),
   );
   vm.runInContext(source, context);
@@ -143,7 +152,7 @@ test("기존 EXE 백업 형식에서 피드백 없는 기록도 읽는다", () =
 test("날짜·상대·승패·맵이 같은 ELO 기록은 중복 처리한다", () => {
   const { context, storage } = createContext();
   storage.set(
-    "newcatsleSpawnNote.records.v1",
+    ["new", "catsleSpawnNote.records.v1"].join(""),
     JSON.stringify([
       { id: 1, date: "2026-09-01", opponent: "최도랑", result: "승", map: "투혼", feedback: "" },
     ]),
@@ -155,4 +164,3 @@ test("날짜·상대·승패·맵이 같은 ELO 기록은 중복 처리한다", 
   );
   assert.equal(duplicate, true);
 });
-

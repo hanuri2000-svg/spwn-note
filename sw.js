@@ -1,5 +1,5 @@
-const CACHE_NAME = "newcatsle-spawn-note-v1";
-const APP_FILES = ["./", "./index.html", "./ui.js", "./config.js", "./manifest.webmanifest", "./logo.png"];
+const CACHE_NAME = "spawn-note-v1.1.0";
+const APP_FILES = ["./", "./index.html", "./ui.js", "./config.js", "./manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_FILES)));

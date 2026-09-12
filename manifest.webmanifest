@@ -1,19 +1,11 @@
 {
-  "name": "NEW CATSLE 스폰노트",
+  "name": "스폰노트",
   "short_name": "스폰노트",
   "description": "스타크래프트 스폰 전적과 피드백을 기록하는 개인 웹앱",
   "lang": "ko",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#f4f3ff",
-  "theme_color": "#312b69",
-  "icons": [
-    {
-      "src": "./logo.png",
-      "sizes": "464x580",
-      "type": "image/png",
-      "purpose": "any"
-    }
-  ]
+  "background_color": "#fff9fb",
+  "theme_color": "#a85f82"
 }

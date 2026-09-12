@@ -1,6 +1,8 @@
-# NEW CATSLE 스폰노트 웹 버전
+# 스폰노트 웹 버전
 
 Windows 실행파일의 스폰일지 기능을 모바일과 PC 브라우저에서 사용할 수 있도록 옮긴 버전입니다.
+
+현재 버전: **v1.1.0**
 
 ## 제공 기능
 
@@ -31,7 +33,7 @@ Windows 실행파일의 스폰일지 기능을 모바일과 PC 브라우저에�
 GitHub Pages는 정적 사이트라 ELOBOARD를 직접 중계할 수 없습니다. `worker` 폴더의 Cloudflare Worker를 배포한 뒤 생성된 주소를 `config.js`에 넣어야 합니다.
 
 ```js
-window.NEWCATSLE_ELO_API_BASE = "https://newcatsle-elo-relay.example.workers.dev";
+window.SPAWN_NOTE_ELO_API_BASE = "https://spawn-note-elo-relay.example.workers.dev";
 ```
 
 Worker 배포 명령:
@@ -43,4 +45,3 @@ npm run deploy
 ```
 
 ELOBOARD가 접속 초과 또는 자동 접근 제한 상태이면 웹앱에서도 해당 오류를 안내합니다.
-
