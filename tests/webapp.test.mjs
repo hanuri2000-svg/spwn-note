@@ -15,6 +15,7 @@ function createElement() {
     showModal() {},
     textContent: "",
     value: "",
+    dataset: {},
   };
 }
 
@@ -30,6 +31,8 @@ function createContext({ apiBase = "", fetchImpl = fetch } = {}) {
     "log",
     "dashTab",
     "logTab",
+    "tier",
+    "tierTab",
     "search",
     "basePlayer",
     "basePlayerSaveButton",
@@ -49,6 +52,12 @@ function createContext({ apiBase = "", fetchImpl = fetch } = {}) {
     "rivalResult",
     "rivalSearchButton",
     "formTitle",
+    "tierStatus",
+    "tierLevelFilters",
+    "tierGroups",
+    "tierSearch",
+    "tierLiveOnly",
+    "tierRefreshButton",
   ]) {
     elements.set(id, createElement());
   }
@@ -114,6 +123,8 @@ function createContext({ apiBase = "", fetchImpl = fetch } = {}) {
       },
     },
     navigator: {},
+    location: { search: "" },
+    setInterval: () => 1,
     setTimeout,
     window: {
       SPAWN_NOTE_ELO_API_BASE: apiBase,
@@ -129,13 +140,57 @@ test("공용 이름과 화면 버전을 표시한다", () => {
   const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
   const manifest = fs.readFileSync(new URL("../manifest.webmanifest", import.meta.url), "utf8");
   assert.match(html, />스폰노트 /);
-  assert.match(html, />v1\.3\.0</);
+  assert.match(html, />v1\.4\.0</);
   assert.match(html, /id="basePlayer"/);
+  assert.match(html, /id="tierTab"/);
+  assert.match(html, /id="tierGroups"/);
   assert.match(html, /ELOBOARD 상대전적 검색/);
   assert.match(html, /id="rivalPlayer"/);
   assert.match(html, /id="rivalOpponent"/);
   const oldBrand = new RegExp(["NEW", "CATSLE"].join("\\s*") + "|뉴" + "캣슬", "i");
   assert.doesNotMatch(`${html}\n${manifest}`, oldBrand);
+});
+
+test("ELOBOARD 티어표를 불러와 복수 티어와 LIVE 상태를 표시한다", async () => {
+  const fetchImpl = async (url) => {
+    const data = String(url).includes("dorang-live")
+      ? {
+          updatedAt: "2026-09-12T07:14:57.530Z",
+          live: [{ soop_id: "danso" , url: "https://play.sooplive.com/danso/1" }],
+        }
+      : {
+          version: "3.61",
+          updatedOn: "2026-08-29",
+          tiers: [
+            {
+              key: "tier8",
+              label: "8티어",
+              players: [
+                { playerId: 833, name: "단솔", race: "P", soopId: "danso", thumbUrl: "players/833.jpg" },
+              ],
+            },
+            {
+              key: "tier7",
+              label: "7티어",
+              players: [{ playerId: 844, name: "퀸주", race: "Z", soopId: "queenzu", thumbUrl: "" }],
+            },
+          ],
+        };
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+  const { context, elements } = createContext({ apiBase: "https://relay.example", fetchImpl });
+  vm.runInContext(source, context);
+  await vm.runInContext("loadTierTable()", context);
+  assert.match(elements.get("tierStatus").textContent, /v3\.61/);
+  assert.match(elements.get("tierGroups").innerHTML, /단솔/);
+  assert.match(elements.get("tierGroups").innerHTML, /퀸주/);
+  assert.match(elements.get("tierGroups").innerHTML, /● LIVE/);
+  vm.runInContext("toggleTierLevel('8티어'); toggleTierLevel('7티어')", context);
+  assert.match(elements.get("tierLevelFilters").innerHTML, /✓ 8티어/);
+  assert.match(elements.get("tierLevelFilters").innerHTML, /✓ 7티어/);
 });
 
 test("기록과 피드백이 브라우저 저장소에 유지된다", () => {
