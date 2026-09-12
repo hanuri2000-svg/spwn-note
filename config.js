@@ -1,3 +1,2 @@
-// ELOBOARD 중계 서버를 배포한 뒤 주소를 입력해.
-// 예: window.SPAWN_NOTE_ELO_API_BASE = "https://spawn-note-elo.example.workers.dev";
-window.SPAWN_NOTE_ELO_API_BASE = "";
+// ELOBOARD 조회용 Cloudflare Worker 중계 서버
+window.SPAWN_NOTE_ELO_API_BASE = "https://spawn-note-elo-relay.hajimayo8130.workers.dev";
