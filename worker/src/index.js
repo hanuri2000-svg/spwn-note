@@ -349,6 +349,32 @@ async function eloDashboard(url) {
   return buildDashboardSummary(profile, raceRows, matches, dateKey);
 }
 
+function buildTierPayload(data) {
+  if (!Array.isArray(data?.tiers)) {
+    throw new ResponseError(502, "ELOBOARD 티어표 형식을 확인하지 못했어.");
+  }
+  return {
+    version: String(data.version || ""),
+    updatedOn: String(data.updated_on || ""),
+    tiers: data.tiers.map((tier) => ({
+      key: String(tier.key || ""),
+      label: String(tier.label || ""),
+      players: (Array.isArray(tier.players) ? tier.players : []).map((player) => ({
+        playerId: Number(player.player_id || 0),
+        name: String(player.name || ""),
+        race: String(player.race || ""),
+        division: String(player.division || ""),
+        soopId: String(player.soop_id || ""),
+        thumbUrl: String(player.thumb_url || ""),
+      })),
+    })),
+  };
+}
+
+async function eloTiers() {
+  return buildTierPayload(await requestEloJson("/api/tiers"));
+}
+
 class ResponseError extends Error {
   constructor(status, message) {
     super(message);
@@ -376,11 +402,12 @@ export default {
     const origin = env.ALLOWED_ORIGIN || "*";
     if (request.method === "OPTIONS") return json({ ok: true }, 200, origin);
     if (request.method !== "GET") return json({ error: "method not allowed" }, 405, origin);
-    if (url.pathname === "/health") return json({ ok: true, version: "1.3.0" }, 200, origin);
+    if (url.pathname === "/health") return json({ ok: true, version: "1.4.0" }, 200, origin);
     try {
       if (url.pathname === "/api/elo/preview") return json(await eloPreview(url), 200, origin);
       if (url.pathname === "/api/elo/rival") return json(await eloRival(url), 200, origin);
       if (url.pathname === "/api/elo/dashboard") return json(await eloDashboard(url), 200, origin);
+      if (url.pathname === "/api/elo/tiers") return json(await eloTiers(), 200, origin);
       return json({ error: "not found" }, 404, origin);
     } catch (error) {
       return json(
@@ -395,6 +422,7 @@ export default {
 export const __test = {
   buildDashboardSummary,
   buildRivalSummary,
+  buildTierPayload,
   matchToRecord,
   normalizeName,
   pageError,
