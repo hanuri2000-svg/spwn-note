@@ -1,4 +1,4 @@
-const CACHE_NAME = "spawn-note-v1.1.2";
+const CACHE_NAME = "spawn-note-v1.1.3";
 const APP_FILES = ["./", "./index.html", "./ui.js", "./config.js", "./manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {

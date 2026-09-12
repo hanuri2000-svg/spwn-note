@@ -120,7 +120,7 @@ test("공용 이름과 화면 버전을 표시한다", () => {
   const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
   const manifest = fs.readFileSync(new URL("../manifest.webmanifest", import.meta.url), "utf8");
   assert.match(html, />스폰노트 /);
-  assert.match(html, />v1\.1\.2</);
+  assert.match(html, />v1\.1\.3</);
   const oldBrand = new RegExp(["NEW", "CATSLE"].join("\\s*") + "|뉴" + "캣슬", "i");
   assert.doesNotMatch(`${html}\n${manifest}`, oldBrand);
 });

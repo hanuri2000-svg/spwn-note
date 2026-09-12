@@ -4,18 +4,18 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>스폰노트</title>
-    <meta name="theme-color" content="#312b69" />
+    <meta name="theme-color" content="#5e3f5a" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <style>
       :root {
-        --violet: #6556b8;
-        --violet2: #312b69;
-        --navy: #171a3c;
-        --silver: #e8eafa;
-        --cyan: #41bde8;
-        --line: #dcdcf0;
-        --win: #edfff8;
-        --lose: #fff1f5;
+        --violet: #8b5574;
+        --violet2: #5e3f5a;
+        --navy: #3f3040;
+        --silver: #f3e8ee;
+        --cyan: #d89ab7;
+        --line: #ead8e2;
+        --win: #eff8f3;
+        --lose: #fff0f4;
       }
       * {
         box-sizing: border-box;
@@ -23,26 +23,27 @@
       body {
         margin: 0;
         font-family: "Malgun Gothic", Arial, sans-serif;
-        color: #252547;
+        color: #4a3742;
         background:
-          radial-gradient(circle at 85% 5%, #dcd8ff 0, transparent 27%),
-          linear-gradient(150deg, #f9f9ff, #f0f1fb);
+          radial-gradient(circle at 85% 5%, #eadff5 0, transparent 27%),
+          radial-gradient(circle at 5% 90%, #f7e3ec 0, transparent 24%),
+          linear-gradient(150deg, #fffafd, #f8f1f5);
         min-height: 100vh;
       }
       header {
         background: linear-gradient(
           120deg,
-          #171a3c 0%,
-          #312b69 55%,
-          #6556b8 100%
+          #493344 0%,
+          #6d4560 55%,
+          #655072 100%
         );
         color: white;
         padding: 14px 28px;
         display: flex;
         align-items: center;
         justify-content: space-between;
-        box-shadow: 0 8px 28px #15153744;
-        border-bottom: 2px solid #9f97e4;
+        box-shadow: 0 8px 28px #3d273644;
+        border-bottom: 2px solid #c68aa8;
       }
       .brand {
         display: flex;
@@ -58,7 +59,7 @@
       .brand-subtitle {
         font-weight: 900;
         letter-spacing: 4px;
-        color: #dcd8ff;
+        color: #f2dfea;
         font-size: 12px;
         margin-top: 5px;
       }
@@ -68,7 +69,7 @@
         padding: 3px 8px;
         border-radius: 999px;
         background: #fff;
-        color: #312b69;
+        color: #5e3f5a;
         font-size: 11px;
         font-weight: 900;
         vertical-align: 2px;
@@ -83,7 +84,7 @@
         border: 1px solid #ffffff38;
         border-radius: 999px;
         background: #ffffff12;
-        color: #e9e7ff;
+        color: #fff4fa;
         font-size: 12px;
         font-weight: 700;
         white-space: nowrap;
@@ -142,26 +143,26 @@
         margin-bottom: 18px;
       }
       .card {
-        background: linear-gradient(150deg, #fff, #f6f5ff);
+        background: linear-gradient(150deg, #fff, #fcf7fa);
         border: 1px solid var(--line);
         border-radius: 15px;
         padding: 17px;
-        box-shadow: 0 7px 22px #29255d12;
-        border-top: 3px solid #8175cf;
+        box-shadow: 0 7px 22px #633d5112;
+        border-top: 3px solid #b77798;
       }
       .card h3 {
         margin: 0 0 9px;
-        color: #5c5590;
+        color: #6f4e64;
         font-size: 14px;
       }
       .big {
         font-size: 24px;
         font-weight: 900;
-        color: #25204f;
+        color: #493445;
       }
       .sub {
         margin-top: 5px;
-        color: #777394;
+        color: #74616d;
       }
       .section {
         background: #ffffffde;
@@ -169,12 +170,12 @@
         border-radius: 15px;
         padding: 18px;
         margin-bottom: 16px;
-        box-shadow: 0 7px 24px #29255d0d;
+        box-shadow: 0 7px 24px #633d510d;
       }
       .section h2 {
         margin: 0 0 13px;
         font-size: 18px;
-        color: #312b69;
+        color: #5e3f5a;
       }
       .races {
         display: grid;
@@ -182,8 +183,8 @@
         gap: 12px;
       }
       .race {
-        background: linear-gradient(140deg, #f1f0ff, #f9faff);
-        border: 1px solid #e0def3;
+        background: linear-gradient(140deg, #fbf2f7, #faf6fd);
+        border: 1px solid #e7d8e1;
         border-radius: 11px;
         padding: 14px;
       }
@@ -194,12 +195,12 @@
         margin-bottom: 14px;
       }
       .btn {
-        background: linear-gradient(135deg, #6556b8, #4c3f9c);
+        background: linear-gradient(135deg, #8b5574, #72517f);
         color: white;
       }
       .btn.secondary {
-        background: #ebeaf6;
-        color: #39336b;
+        background: #f1e7ed;
+        color: #543b4a;
       }
       .btn.danger {
         background: #b23d5a;
@@ -217,7 +218,7 @@
         font-size: 13px;
       }
       th {
-        background: #312b69;
+        background: #5e3f5a;
         color: white;
         position: sticky;
         top: 0;
@@ -226,13 +227,13 @@
       th,
       td {
         padding: 9px 8px;
-        border-right: 1px solid #e1e0ed;
-        border-bottom: 1px solid #e1e0ed;
+        border-right: 1px solid #eadde4;
+        border-bottom: 1px solid #eadde4;
         text-align: left;
         white-space: nowrap;
       }
       tbody tr:hover {
-        outline: 2px solid #aaa2e1;
+        outline: 2px solid #c493aa;
         outline-offset: -2px;
       }
       .tablewrap {
@@ -251,15 +252,15 @@
         border: 0;
         border-radius: 16px;
         padding: 0;
-        box-shadow: 0 20px 60px #17152f66;
+        box-shadow: 0 20px 60px #3b293566;
         width: min(900px, 94vw);
       }
       dialog::backdrop {
-        background: #17152f99;
+        background: #33242e99;
       }
       .modalhead {
         padding: 16px 20px;
-        background: linear-gradient(120deg, #171a3c, #6556b8);
+        background: linear-gradient(120deg, #493344, #72517f);
         color: white;
       }
       .modalhead h2 {
@@ -275,7 +276,7 @@
         display: block;
         font-size: 12px;
         font-weight: 700;
-        color: #555076;
+        color: #604858;
         margin-bottom: 5px;
       }
       .field input,
@@ -283,7 +284,7 @@
       .field textarea {
         width: 100%;
         padding: 9px;
-        border: 1px solid #d6d3e7;
+        border: 1px solid #dfd0d8;
         border-radius: 8px;
       }
       .span2 {
@@ -303,12 +304,12 @@
       .recent div {
         padding: 10px 12px;
         border-radius: 8px;
-        border-left: 4px solid #8175cf;
+        border-left: 4px solid #b77798;
       }
       .empty {
         text-align: center;
         padding: 35px;
-        color: #817c9b;
+        color: #76636f;
       }
       @media (max-width: 1000px) {
         header {
@@ -348,10 +349,10 @@
       .notice {
         margin: 18px 2px 5px;
         padding: 13px 16px;
-        border: 1px solid #d6d3eb;
+        border: 1px solid #e5d5de;
         border-radius: 11px;
-        background: #f5f4ff;
-        color: #5e5980;
+        background: #fbf3f7;
+        color: #604b57;
         font-size: 13px;
         line-height: 1.6;
         text-align: center;
@@ -376,25 +377,25 @@
         margin: 4px 0 6px;
         padding: 4px 9px;
         border-radius: 6px;
-        background: #6556b8;
+        background: #8b5574;
         color: #fff;
         font-weight: 800;
         font-size: 12px;
       }
       .note-label.feedback-label {
         margin-top: 12px;
-        background: #347c94;
+        background: #72517f;
       }
       .note-text {
         width: 100%;
         padding: 11px 13px;
-        border: 1px solid #d8d5eb;
+        border: 1px solid #e2d3db;
         border-radius: 9px;
         background: #fff;
         line-height: 1.65;
         overflow-wrap: anywhere;
         word-break: break-word;
-        color: #38345c;
+        color: #493742;
         min-height: 42px;
       }
     </style>
@@ -403,12 +404,12 @@
         cursor: pointer;
       }
       .game-row:hover td {
-        background: #ece9ff;
+        background: #f7e9f0;
       }
       .game-row td:first-child::before {
         content: "▸";
         margin-right: 6px;
-        color: #6556b8;
+        color: #8b5574;
         font-weight: 900;
       }
       .note-row td {
@@ -431,12 +432,12 @@
         white-space: nowrap !important;
         overflow: hidden;
         text-overflow: ellipsis;
-        color: #4c4672;
+        color: #5d4654;
         font-weight: 600;
       }
       .note-preview::after {
         content: "  ▾";
-        color: #6556b8;
+        color: #8b5574;
         font-weight: 900;
       }
     </style>
@@ -445,7 +446,7 @@
     <header>
       <div class="brand">
         <div class="brandtext">
-          <h1>스폰노트 <span class="version-badge">v1.1.2</span></h1>
+          <h1>스폰노트 <span class="version-badge">v1.1.3</span></h1>
           <div class="brand-subtitle">STARCRAFT RECORD</div>
         </div>
       </div>
@@ -465,8 +466,8 @@
           margin-left: 5px;
           padding: 2px 6px;
           border-radius: 999px;
-          background: #41bde8;
-          color: #102946;
+          background: #efd5e2;
+          color: #55394a;
           font-size: 10px;
           font-weight: 900;
           vertical-align: middle;
@@ -475,8 +476,8 @@
           margin: 6px 0 10px;
           padding: 9px 11px;
           border-radius: 8px;
-          background: #e9f8ff;
-          color: #23506b;
+          background: #faedf4;
+          color: #604153;
           font-size: 12px;
           font-weight: 700;
         }
@@ -494,15 +495,15 @@
         .elo-controls .field select {
           width: 100%;
           padding: 9px;
-          border: 1px solid #d6d3e7;
+          border: 1px solid #dfd0d8;
           border-radius: 8px;
         }
         .elo-status {
           margin: 0 18px 12px;
           padding: 10px 12px;
           border-radius: 8px;
-          background: #f1f0ff;
-          color: #514a84;
+          background: #f7eaf1;
+          color: #5c4050;
           font-size: 13px;
         }
         .elo-tablewrap {
@@ -529,7 +530,7 @@
         }
         .elo-help {
           font-size: 12px;
-          color: #777394;
+          color: #735e6b;
         }
         @media (max-width: 850px) {
           .elo-controls {
