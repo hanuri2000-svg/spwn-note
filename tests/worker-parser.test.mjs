@@ -143,6 +143,40 @@ test("대시보드 통계는 ELOBOARD 전체 공식전을 기간·상대 종족�
   );
 });
 
+test("ELOBOARD 티어 자료를 화면용 안전한 형식으로 변환한다", () => {
+  const result = __test.buildTierPayload({
+    version: "3.61",
+    updated_on: "2026-08-29",
+    tiers: [
+      {
+        key: "tier8",
+        label: "8티어",
+        players: [
+          {
+            player_id: 833,
+            name: "단솔",
+            race: "P",
+            division: "women",
+            soop_id: "danso",
+            thumb_url: "players/833.jpg",
+            ignored: "제외",
+          },
+        ],
+      },
+    ],
+  });
+  assert.equal(result.version, "3.61");
+  assert.equal(result.updatedOn, "2026-08-29");
+  assert.deepEqual(result.tiers[0].players[0], {
+    playerId: 833,
+    name: "단솔",
+    race: "P",
+    division: "women",
+    soopId: "danso",
+    thumbUrl: "players/833.jpg",
+  });
+});
+
 test("ELOBOARD 서버 오류 문구를 구분한다", () => {
   assert.match(__test.pageError("database unavailable"), /접속자가 많아/);
   assert.match(__test.pageError("Site Unavailable"), /자동 조회를 제한/);
