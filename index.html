@@ -4,50 +4,51 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>스폰노트</title>
-    <meta name="theme-color" content="#5a3047" />
+    <meta name="theme-color" content="#312b69" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <style>
       :root {
-        --rose: #8f4868;
-        --rose-deep: #5a3047;
-        --lavender: #66517e;
-        --plum: #472f41;
-        --cream: #fff8fb;
-        --line: #e2d4dd;
-        --win: #eef8f3;
-        --lose: #fff0f3;
+        --violet: #6556b8;
+        --violet2: #312b69;
+        --navy: #171a3c;
+        --silver: #e8eafa;
+        --cyan: #41bde8;
+        --line: #dcdcf0;
+        --win: #edfff8;
+        --lose: #fff1f5;
       }
       * {
         box-sizing: border-box;
       }
       body {
         margin: 0;
-        font-family: "Pretendard", "Malgun Gothic", Arial, sans-serif;
-        color: #3f303a;
+        font-family: "Malgun Gothic", Arial, sans-serif;
+        color: #252547;
         background:
-          radial-gradient(circle at 86% 6%, #eadff3 0, transparent 27%),
-          linear-gradient(150deg, #fffafd, #f7f0f4);
+          radial-gradient(circle at 85% 5%, #dcd8ff 0, transparent 27%),
+          linear-gradient(150deg, #f9f9ff, #f0f1fb);
         min-height: 100vh;
       }
       header {
         background: linear-gradient(
           120deg,
-          #4c2c3f 0%,
-          #653a55 55%,
-          #59436d 100%
+          #171a3c 0%,
+          #312b69 55%,
+          #6556b8 100%
         );
         color: white;
         padding: 14px 28px;
         display: flex;
         align-items: center;
         justify-content: space-between;
-        box-shadow: 0 8px 28px #35202d40;
-        border-bottom: 2px solid #b87898;
+        box-shadow: 0 8px 28px #15153744;
+        border-bottom: 2px solid #9f97e4;
       }
       .brand {
         display: flex;
         align-items: center;
         gap: 15px;
+        min-height: 82px;
       }
       .brandtext h1 {
         margin: 0;
@@ -55,25 +56,22 @@
         letter-spacing: -0.5px;
       }
       .brand-subtitle {
-        font-weight: 700;
-        letter-spacing: 3px;
-        color: #f8eaf1;
+        font-weight: 900;
+        letter-spacing: 4px;
+        color: #dcd8ff;
         font-size: 12px;
         margin-top: 5px;
       }
       .version-badge {
-        display: inline-flex;
-        align-items: center;
+        display: inline-block;
         margin-left: 8px;
         padding: 3px 8px;
-        border: 1px solid #fff;
         border-radius: 999px;
         background: #fff;
-        color: #5a3047;
+        color: #312b69;
         font-size: 11px;
-        font-weight: 800;
-        letter-spacing: 0;
-        vertical-align: 1px;
+        font-weight: 900;
+        vertical-align: 2px;
       }
       .headright {
         display: flex;
@@ -82,17 +80,17 @@
       }
       .storage-note {
         padding: 8px 11px;
-        border: 1px solid #fff;
+        border: 1px solid #ffffff38;
         border-radius: 999px;
-        background: #fff;
-        color: #5a3047;
+        background: #ffffff12;
+        color: #e9e7ff;
         font-size: 12px;
         font-weight: 700;
         white-space: nowrap;
       }
       .app-exit {
         border: 1px solid #ffffff38 !important;
-        background: #c94e68 !important;
+        background: #a93655 !important;
         color: #fff !important;
         box-shadow: 0 4px 12px #12091b33;
       }
@@ -120,14 +118,14 @@
         cursor: pointer;
       }
       .tabs button {
-        background: #ffffff14;
+        background: #ffffff17;
         color: white;
         margin-left: 7px;
-        border: 1px solid #ffffff70;
+        border: 1px solid #ffffff1c;
       }
       .tabs button.active {
         background: white;
-        color: var(--rose-deep);
+        color: var(--violet2);
       }
       main {
         padding: 22px;
@@ -144,39 +142,39 @@
         margin-bottom: 18px;
       }
       .card {
-        background: linear-gradient(150deg, #fff, #fcf7fa);
+        background: linear-gradient(150deg, #fff, #f6f5ff);
         border: 1px solid var(--line);
         border-radius: 15px;
         padding: 17px;
-        box-shadow: 0 7px 22px #52374414;
-        border-top: 3px solid #a95f82;
+        box-shadow: 0 7px 22px #29255d12;
+        border-top: 3px solid #8175cf;
       }
       .card h3 {
         margin: 0 0 9px;
-        color: #704259;
+        color: #5c5590;
         font-size: 14px;
       }
       .big {
         font-size: 24px;
         font-weight: 900;
-        color: #472f41;
+        color: #25204f;
       }
       .sub {
         margin-top: 5px;
-        color: #705d68;
+        color: #777394;
       }
       .section {
-        background: #ffffffeb;
+        background: #ffffffde;
         border: 1px solid var(--line);
         border-radius: 15px;
         padding: 18px;
         margin-bottom: 16px;
-        box-shadow: 0 7px 24px #52374410;
+        box-shadow: 0 7px 24px #29255d0d;
       }
       .section h2 {
         margin: 0 0 13px;
         font-size: 18px;
-        color: #5a3047;
+        color: #312b69;
       }
       .races {
         display: grid;
@@ -184,8 +182,8 @@
         gap: 12px;
       }
       .race {
-        background: linear-gradient(140deg, #fdf3f8, #faf6fc);
-        border: 1px solid #e5d6df;
+        background: linear-gradient(140deg, #f1f0ff, #f9faff);
+        border: 1px solid #e0def3;
         border-radius: 11px;
         padding: 14px;
       }
@@ -196,39 +194,21 @@
         margin-bottom: 14px;
       }
       .btn {
-        background: linear-gradient(135deg, #8f4868, #69466e);
+        background: linear-gradient(135deg, #6556b8, #4c3f9c);
         color: white;
-        border-radius: 9px;
-        box-shadow: 0 4px 12px #5230402b;
-        transition: transform 0.18s ease, box-shadow 0.18s ease;
-      }
-      .btn:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 6px 16px #5230403d;
       }
       .btn.secondary {
-        background: #eee4ea;
-        color: #523747;
-        box-shadow: none;
+        background: #ebeaf6;
+        color: #39336b;
       }
       .btn.danger {
-        background: #b84e68;
+        background: #b23d5a;
       }
       .search {
         padding: 10px;
         border: 1px solid var(--line);
         border-radius: 9px;
         min-width: 220px;
-        background: #fffbfd;
-        color: #49343f;
-        outline: none;
-      }
-      .search:focus,
-      .field input:focus,
-      .field select:focus,
-      .field textarea:focus {
-        border-color: #9b5d7a;
-        box-shadow: 0 0 0 3px #e6c7d566;
       }
       table {
         width: 100%;
@@ -237,7 +217,7 @@
         font-size: 13px;
       }
       th {
-        background: #60364f;
+        background: #312b69;
         color: white;
         position: sticky;
         top: 0;
@@ -246,13 +226,13 @@
       th,
       td {
         padding: 9px 8px;
-        border-right: 1px solid #eadde4;
-        border-bottom: 1px solid #eadde4;
+        border-right: 1px solid #e1e0ed;
+        border-bottom: 1px solid #e1e0ed;
         text-align: left;
         white-space: nowrap;
       }
       tbody tr:hover {
-        outline: 2px solid #b8849d;
+        outline: 2px solid #aaa2e1;
         outline-offset: -2px;
       }
       .tablewrap {
@@ -271,15 +251,15 @@
         border: 0;
         border-radius: 16px;
         padding: 0;
-        box-shadow: 0 20px 60px #3c27345c;
+        box-shadow: 0 20px 60px #17152f66;
         width: min(900px, 94vw);
       }
       dialog::backdrop {
-        background: #35242e99;
+        background: #17152f99;
       }
       .modalhead {
         padding: 16px 20px;
-        background: linear-gradient(120deg, #583047, #624b78);
+        background: linear-gradient(120deg, #171a3c, #6556b8);
         color: white;
       }
       .modalhead h2 {
@@ -295,7 +275,7 @@
         display: block;
         font-size: 12px;
         font-weight: 700;
-        color: #604354;
+        color: #555076;
         margin-bottom: 5px;
       }
       .field input,
@@ -303,9 +283,8 @@
       .field textarea {
         width: 100%;
         padding: 9px;
-        border: 1px solid #d8c9d2;
+        border: 1px solid #d6d3e7;
         border-radius: 8px;
-        background: #fffbfd;
       }
       .span2 {
         grid-column: span 2;
@@ -324,12 +303,12 @@
       .recent div {
         padding: 10px 12px;
         border-radius: 8px;
-        border-left: 4px solid #a95f82;
+        border-left: 4px solid #8175cf;
       }
       .empty {
         text-align: center;
         padding: 35px;
-        color: #75616c;
+        color: #817c9b;
       }
       @media (max-width: 1000px) {
         header {
@@ -355,6 +334,9 @@
           align-items: flex-start;
           width: 100%;
         }
+        .brand {
+          min-height: 65px;
+        }
         .form {
           grid-template-columns: 1fr;
         }
@@ -366,10 +348,10 @@
       .notice {
         margin: 18px 2px 5px;
         padding: 13px 16px;
-        border: 1px solid #ead9e4;
+        border: 1px solid #d6d3eb;
         border-radius: 11px;
-        background: #fbf3f7;
-        color: #604a57;
+        background: #f5f4ff;
+        color: #5e5980;
         font-size: 13px;
         line-height: 1.6;
         text-align: center;
@@ -394,25 +376,25 @@
         margin: 4px 0 6px;
         padding: 4px 9px;
         border-radius: 6px;
-        background: #8f4868;
+        background: #6556b8;
         color: #fff;
         font-weight: 800;
         font-size: 12px;
       }
       .note-label.feedback-label {
         margin-top: 12px;
-        background: #66517e;
+        background: #347c94;
       }
       .note-text {
         width: 100%;
         padding: 11px 13px;
-        border: 1px solid #ded0d8;
+        border: 1px solid #d8d5eb;
         border-radius: 9px;
         background: #fff;
         line-height: 1.65;
         overflow-wrap: anywhere;
         word-break: break-word;
-        color: #45333d;
+        color: #38345c;
         min-height: 42px;
       }
     </style>
@@ -421,12 +403,12 @@
         cursor: pointer;
       }
       .game-row:hover td {
-        background: #f8e7ef;
+        background: #ece9ff;
       }
       .game-row td:first-child::before {
         content: "▸";
         margin-right: 6px;
-        color: #8f4868;
+        color: #6556b8;
         font-weight: 900;
       }
       .note-row td {
@@ -449,12 +431,12 @@
         white-space: nowrap !important;
         overflow: hidden;
         text-overflow: ellipsis;
-        color: #5c4351;
+        color: #4c4672;
         font-weight: 600;
       }
       .note-preview::after {
         content: "  ▾";
-        color: #8f4868;
+        color: #6556b8;
         font-weight: 900;
       }
     </style>
@@ -463,8 +445,8 @@
     <header>
       <div class="brand">
         <div class="brandtext">
-          <h1>스폰노트 <span class="version-badge">v1.1.1</span></h1>
-          <div class="brand-subtitle">MY STARCRAFT RECORD</div>
+          <h1>스폰노트 <span class="version-badge">v1.1.2</span></h1>
+          <div class="brand-subtitle">STARCRAFT RECORD</div>
         </div>
       </div>
       <div class="headright">
@@ -475,6 +457,7 @@
           ><button id="logTab" onclick="showTab('log')">스폰일지</button>
         </div>
       </div>
+    </header>
     <main>
       <style>
         .elo-badge {
@@ -482,8 +465,8 @@
           margin-left: 5px;
           padding: 2px 6px;
           border-radius: 999px;
-          background: #eadff0;
-          color: #533b63;
+          background: #41bde8;
+          color: #102946;
           font-size: 10px;
           font-weight: 900;
           vertical-align: middle;
@@ -492,8 +475,8 @@
           margin: 6px 0 10px;
           padding: 9px 11px;
           border-radius: 8px;
-          background: #f3eaf6;
-          color: #573f60;
+          background: #e9f8ff;
+          color: #23506b;
           font-size: 12px;
           font-weight: 700;
         }
@@ -511,15 +494,15 @@
         .elo-controls .field select {
           width: 100%;
           padding: 9px;
-          border: 1px solid #d8c9d2;
+          border: 1px solid #d6d3e7;
           border-radius: 8px;
         }
         .elo-status {
           margin: 0 18px 12px;
           padding: 10px 12px;
           border-radius: 8px;
-          background: #f5eaf0;
-          color: #5b3d4d;
+          background: #f1f0ff;
+          color: #514a84;
           font-size: 13px;
         }
         .elo-tablewrap {
@@ -546,7 +529,7 @@
         }
         .elo-help {
           font-size: 12px;
-          color: #6d5764;
+          color: #777394;
         }
         @media (max-width: 850px) {
           .elo-controls {
