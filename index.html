@@ -1,0 +1,772 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>NEW CATSLE 스폰노트</title>
+    <meta name="theme-color" content="#312b69" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./logo.png" type="image/png" />
+    <style>
+      :root {
+        --violet: #6556b8;
+        --violet2: #312b69;
+        --navy: #171a3c;
+        --silver: #e8eafa;
+        --cyan: #41bde8;
+        --line: #dcdcf0;
+        --win: #edfff8;
+        --lose: #fff1f5;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: "Malgun Gothic", Arial, sans-serif;
+        color: #252547;
+        background:
+          radial-gradient(circle at 85% 5%, #dcd8ff 0, transparent 27%),
+          linear-gradient(150deg, #f9f9ff, #f0f1fb);
+        min-height: 100vh;
+      }
+      header {
+        background: linear-gradient(
+          120deg,
+          #171a3c 0%,
+          #312b69 55%,
+          #6556b8 100%
+        );
+        color: white;
+        padding: 14px 28px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        box-shadow: 0 8px 28px #15153744;
+        border-bottom: 2px solid #9f97e4;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+      }
+      .brand img {
+        width: 72px;
+        height: 82px;
+        object-fit: contain;
+        filter: drop-shadow(0 4px 7px #0007);
+      }
+      .brandtext h1 {
+        margin: 0;
+        font-size: 25px;
+        letter-spacing: -0.5px;
+      }
+      .newcatsle {
+        font-weight: 900;
+        letter-spacing: 4px;
+        color: #dcd8ff;
+        font-size: 12px;
+        margin-top: 5px;
+      }
+      .headright {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+      }
+      .storage-note {
+        padding: 8px 11px;
+        border: 1px solid #ffffff38;
+        border-radius: 999px;
+        background: #ffffff12;
+        color: #e9e7ff;
+        font-size: 12px;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .app-exit {
+        border: 1px solid #ffffff38 !important;
+        background: #c94e68 !important;
+        color: #fff !important;
+        box-shadow: 0 4px 12px #12091b33;
+      }
+      .app-exit:disabled {
+        opacity: 0.65;
+        cursor: wait;
+      }
+      .tablewrap th:nth-child(10),
+      .tablewrap td:nth-child(10) {
+        width: 420px;
+        min-width: 420px;
+        max-width: 420px;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        line-height: 1.55;
+        vertical-align: top;
+      } /*xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx*/
+      .tabs button,
+      .btn {
+        border: 0;
+        border-radius: 9px;
+        padding: 10px 15px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .tabs button {
+        background: #ffffff17;
+        color: white;
+        margin-left: 7px;
+        border: 1px solid #ffffff1c;
+      }
+      .tabs button.active {
+        background: white;
+        color: var(--violet2);
+      }
+      main {
+        padding: 22px;
+        max-width: 1600px;
+        margin: auto;
+      }
+      .hidden {
+        display: none !important;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(165px, 1fr));
+        gap: 13px;
+        margin-bottom: 18px;
+      }
+      .card {
+        background: linear-gradient(150deg, #fff, #f6f5ff);
+        border: 1px solid var(--line);
+        border-radius: 15px;
+        padding: 17px;
+        box-shadow: 0 7px 22px #29255d12;
+        border-top: 3px solid #8175cf;
+      }
+      .card h3 {
+        margin: 0 0 9px;
+        color: #5c5590;
+        font-size: 14px;
+      }
+      .big {
+        font-size: 24px;
+        font-weight: 900;
+        color: #25204f;
+      }
+      .sub {
+        margin-top: 5px;
+        color: #777394;
+      }
+      .section {
+        background: #ffffffde;
+        border: 1px solid var(--line);
+        border-radius: 15px;
+        padding: 18px;
+        margin-bottom: 16px;
+        box-shadow: 0 7px 24px #29255d0d;
+      }
+      .section h2 {
+        margin: 0 0 13px;
+        font-size: 18px;
+        color: #312b69;
+      }
+      .races {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+      }
+      .race {
+        background: linear-gradient(140deg, #f1f0ff, #f9faff);
+        border: 1px solid #e0def3;
+        border-radius: 11px;
+        padding: 14px;
+      }
+      .toolbar {
+        display: flex;
+        gap: 9px;
+        flex-wrap: wrap;
+        margin-bottom: 14px;
+      }
+      .btn {
+        background: linear-gradient(135deg, #6556b8, #4c3f9c);
+        color: white;
+      }
+      .btn.secondary {
+        background: #ebeaf6;
+        color: #39336b;
+      }
+      .btn.danger {
+        background: #d95773;
+      }
+      .search {
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        min-width: 220px;
+      }
+      table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 13px;
+      }
+      th {
+        background: #312b69;
+        color: white;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+      }
+      th,
+      td {
+        padding: 9px 8px;
+        border-right: 1px solid #e1e0ed;
+        border-bottom: 1px solid #e1e0ed;
+        text-align: left;
+        white-space: nowrap;
+      }
+      tbody tr:hover {
+        outline: 2px solid #aaa2e1;
+        outline-offset: -2px;
+      }
+      .tablewrap {
+        overflow: auto;
+        max-height: 68vh;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+      }
+      .win {
+        background: var(--win);
+      }
+      .lose {
+        background: var(--lose);
+      }
+      dialog {
+        border: 0;
+        border-radius: 16px;
+        padding: 0;
+        box-shadow: 0 20px 60px #17152f66;
+        width: min(900px, 94vw);
+      }
+      dialog::backdrop {
+        background: #17152f99;
+      }
+      .modalhead {
+        padding: 16px 20px;
+        background: linear-gradient(120deg, #171a3c, #6556b8);
+        color: white;
+      }
+      .modalhead h2 {
+        margin: 0;
+      }
+      .form {
+        padding: 18px;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+      }
+      .field label {
+        display: block;
+        font-size: 12px;
+        font-weight: 700;
+        color: #555076;
+        margin-bottom: 5px;
+      }
+      .field input,
+      .field select,
+      .field textarea {
+        width: 100%;
+        padding: 9px;
+        border: 1px solid #d6d3e7;
+        border-radius: 8px;
+      }
+      .span2 {
+        grid-column: span 2;
+      }
+      .span3 {
+        grid-column: span 3;
+      }
+      .actions {
+        padding: 0 18px 18px;
+        text-align: right;
+      }
+      .recent {
+        display: grid;
+        gap: 7px;
+      }
+      .recent div {
+        padding: 10px 12px;
+        border-radius: 8px;
+        border-left: 4px solid #8175cf;
+      }
+      .empty {
+        text-align: center;
+        padding: 35px;
+        color: #817c9b;
+      }
+      @media (max-width: 1000px) {
+        header {
+          align-items: flex-start;
+        }
+        .headright {
+          flex-direction: column;
+          align-items: flex-end;
+        }
+        .cards {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .races {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+      @media (max-width: 700px) {
+        header {
+          padding: 12px;
+          flex-direction: column;
+        }
+        .headright {
+          align-items: flex-start;
+          width: 100%;
+        }
+        .brand img {
+          width: 58px;
+          height: 65px;
+        }
+        .form {
+          grid-template-columns: 1fr;
+        }
+        .span2,
+        .span3 {
+          grid-column: span 1;
+        }
+      }
+      .notice {
+        margin: 18px 2px 5px;
+        padding: 13px 16px;
+        border: 1px solid #d6d3eb;
+        border-radius: 11px;
+        background: #f5f4ff;
+        color: #5e5980;
+        font-size: 13px;
+        line-height: 1.6;
+        text-align: center;
+      }
+    </style>
+    <style>
+      .game-row td {
+        border-bottom: 0;
+      }
+      .note-row td {
+        padding: 0 10px 13px !important;
+        white-space: normal !important;
+      }
+      .note-row:hover {
+        outline: none;
+      }
+      .note-row td > div {
+        white-space: normal !important;
+      }
+      .note-label {
+        display: inline-block;
+        margin: 4px 0 6px;
+        padding: 4px 9px;
+        border-radius: 6px;
+        background: #6556b8;
+        color: #fff;
+        font-weight: 800;
+        font-size: 12px;
+      }
+      .note-label.feedback-label {
+        margin-top: 12px;
+        background: #347c94;
+      }
+      .note-text {
+        width: 100%;
+        padding: 11px 13px;
+        border: 1px solid #d8d5eb;
+        border-radius: 9px;
+        background: #fff;
+        line-height: 1.65;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        color: #38345c;
+        min-height: 42px;
+      }
+    </style>
+    <style>
+      .game-row {
+        cursor: pointer;
+      }
+      .game-row:hover td {
+        background: #ece9ff;
+      }
+      .game-row td:first-child::before {
+        content: "▸";
+        margin-right: 6px;
+        color: #6556b8;
+        font-weight: 900;
+      }
+      .note-row td {
+        padding: 4px 12px 16px !important;
+      }
+      .note-text {
+        font-size: 14px;
+      }
+    </style>
+    <style>
+      .tablewrap th:nth-child(10),
+      .tablewrap td:nth-child(10),
+      .tablewrap th:nth-child(11),
+      .tablewrap td:nth-child(11) {
+        width: 300px;
+        min-width: 300px;
+        max-width: 300px;
+      }
+      .note-preview {
+        white-space: nowrap !important;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: #4c4672;
+        font-weight: 600;
+      }
+      .note-preview::after {
+        content: "  ▾";
+        color: #6556b8;
+        font-weight: 900;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="brand">
+        <img
+          src="./logo.png"
+          alt="NEW CATSLE 로고"
+        />
+        <div class="brandtext">
+          <h1>NEW CATSLE 스폰노트</h1>
+          <div class="newcatsle">NEWCATSLE · STARCRAFT RECORD</div>
+        </div>
+      </div>
+      <div class="headright">
+        <div class="storage-note">이 기기에 자동 저장</div>
+        <div class="tabs">
+          <button id="dashTab" class="active" onclick="showTab('dash')">
+            대시보드</button
+          ><button id="logTab" onclick="showTab('log')">스폰일지</button>
+        </div>
+      </div>
+    </header>
+    <main>
+      <style>
+        .elo-badge {
+          display: inline-block;
+          margin-left: 5px;
+          padding: 2px 6px;
+          border-radius: 999px;
+          background: #41bde8;
+          color: #102946;
+          font-size: 10px;
+          font-weight: 900;
+          vertical-align: middle;
+        }
+        .elo-detail {
+          margin: 6px 0 10px;
+          padding: 9px 11px;
+          border-radius: 8px;
+          background: #e9f8ff;
+          color: #23506b;
+          font-size: 12px;
+          font-weight: 700;
+        }
+        .elo-dialog {
+          width: min(1180px, 96vw);
+        }
+        .elo-controls {
+          display: grid;
+          grid-template-columns: 1.2fr 1fr 0.8fr auto;
+          gap: 10px;
+          align-items: end;
+          padding: 16px 18px 10px;
+        }
+        .elo-controls .field input,
+        .elo-controls .field select {
+          width: 100%;
+          padding: 9px;
+          border: 1px solid #d6d3e7;
+          border-radius: 8px;
+        }
+        .elo-status {
+          margin: 0 18px 12px;
+          padding: 10px 12px;
+          border-radius: 8px;
+          background: #f1f0ff;
+          color: #514a84;
+          font-size: 13px;
+        }
+        .elo-tablewrap {
+          margin: 0 18px 14px;
+          max-height: 48vh;
+          overflow: auto;
+          border: 1px solid var(--line);
+          border-radius: 10px;
+        }
+        .elo-tablewrap th,
+        .elo-tablewrap td {
+          padding: 8px;
+          white-space: nowrap;
+        }
+        .elo-duplicate {
+          opacity: 0.55;
+          background: #f1f1f5;
+        }
+        .elo-actions {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 0 18px 18px;
+        }
+        .elo-help {
+          font-size: 12px;
+          color: #777394;
+        }
+        @media (max-width: 850px) {
+          .elo-controls {
+            grid-template-columns: 1fr 1fr;
+          }
+          .elo-controls .btn {
+            width: 100%;
+          }
+        }
+      </style>
+      <section id="dash">
+        <div class="cards" id="cards"></div>
+        <div class="section">
+          <h2>종족별 전적</h2>
+          <div class="races" id="races"></div>
+        </div>
+        <div class="section">
+          <h2>🔥 최근 10경기</h2>
+          <div class="recent" id="recent"></div>
+        </div>
+        <div class="notice">
+          ※ ELOBOARD에서 가져온 전적과 직접 입력한 전적이 함께 집계됩니다.
+          기록은 현재 브라우저에 저장되며, 다른 기기로 옮길 때는 백업 파일을
+          사용해 주세요. ELOBOARD에서 이후 수정·삭제된 기록은 자동 반영되지
+          않을 수 있습니다.
+        </div>
+      </section>
+      <section id="log" class="hidden">
+        <div class="toolbar">
+          <button class="btn" onclick="openForm()">＋ 기록 추가</button
+          ><button class="btn" onclick="openEloDialog()">
+            ↻ ELO 전적 가져오기</button
+          ><input
+            id="search"
+            class="search"
+            placeholder="상대·빌드·맵·메모 검색"
+            oninput="renderTable()"
+          /><button class="btn secondary" onclick="exportCsv()">
+            CSV 내보내기</button
+          ><button class="btn secondary" onclick="exportJson()">
+            백업 저장</button
+          ><label class="btn secondary"
+            >백업 불러오기<input
+              type="file"
+              accept=".json"
+              hidden
+              onchange="importJson(this)" /></label
+          ><button class="btn danger" onclick="resetAllRecords()">
+            전체 리셋
+          </button>
+        </div>
+        <div class="tablewrap">
+          <table>
+            <thead>
+              <tr>
+                <th>날짜</th>
+                <th>상대</th>
+                <th>티어</th>
+                <th>종족</th>
+                <th>승패</th>
+                <th>사용 빌드</th>
+                <th>상대 빌드</th>
+                <th>맵</th>
+                <th>패인</th>
+                <th>느낀점 미리보기</th>
+                <th>피드백 미리보기</th>
+                <th>관리</th>
+              </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+    <dialog id="eloDlg" class="elo-dialog">
+      <div class="modalhead"><h2>ELOBOARD 전적 가져오기</h2></div>
+      <div class="elo-controls">
+        <div class="field">
+          <label>선수 이름</label
+          ><input
+            id="eloPlayer"
+            placeholder="ELOBOARD에 등록된 이름"
+            maxlength="30"
+          />
+        </div>
+        <div class="field">
+          <label>조회 시작 날짜</label><input id="eloFromDate" type="date" />
+        </div>
+        <div class="field">
+          <label>최대 가져오기</label
+          ><select id="eloPages">
+            <option value="25" selected>25경기</option>
+            <option value="50">50경기</option>
+            <option value="100">100경기</option>
+          </select>
+        </div>
+        <button
+          id="eloLookupButton"
+          type="button"
+          class="btn"
+          onclick="previewElo()"
+        >
+          전적 조회
+        </button>
+      </div>
+      <div id="eloStatus" class="elo-status"></div>
+      <div class="elo-tablewrap">
+        <table>
+          <thead>
+            <tr>
+              <th>
+                <input
+                  id="eloSelectAll"
+                  type="checkbox"
+                  onchange="toggleEloAll(this.checked)"
+                />
+              </th>
+              <th>날짜</th>
+              <th>상대</th>
+              <th>종족</th>
+              <th>승패</th>
+              <th>맵</th>
+              <th>ELO</th>
+              <th>상태·경기방식</th>
+            </tr>
+          </thead>
+          <tbody id="eloPreviewBody">
+            <tr>
+              <td colspan="8" class="empty">아직 조회하지 않았어</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="elo-actions">
+        <div class="elo-help">
+          이름으로 선수 개인 페이지를 찾아 전적을 조회해. 기존 기록과 겹치는
+          경기는 자동으로 제외돼.
+        </div>
+        <div>
+          <button type="button" class="btn secondary" onclick="eloDlg.close()">
+            닫기
+          </button>
+          <button
+            id="eloImportButton"
+            type="button"
+            class="btn"
+            onclick="importSelectedElo()"
+            disabled
+          >
+            선택 기록 추가
+          </button>
+        </div>
+      </div>
+    </dialog>
+    <dialog id="dlg">
+      <div class="modalhead"><h2 id="formTitle">기록 추가</h2></div>
+      <form id="form" onsubmit="submitForm(event)">
+        <div class="form">
+          <input type="hidden" name="id" />
+          <div class="field">
+            <label>날짜 *</label><input name="date" type="date" required />
+          </div>
+          <div class="field">
+            <label>상대 *</label><input name="opponent" required />
+          </div>
+          <div class="field">
+            <label>티어</label
+            ><select name="tier">
+              <option></option>
+              <option>유스</option>
+              <option>8티어</option>
+              <option>7티어</option>
+              <option>6티어</option>
+              <option>5티어</option>
+              <option>4티어</option>
+              <option>3티어</option>
+              <option>2티어</option>
+              <option>1티어</option>
+              <option>Spade</option>
+              <option>Joker</option>
+              <option>Jack</option>
+              <option>King</option>
+              <option>God</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>종족</label
+            ><select name="race">
+              <option></option>
+              <option>테란</option>
+              <option>저그</option>
+              <option>토스</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>승패 *</label
+            ><select name="result" required>
+              <option>승</option>
+              <option>패</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>사용 빌드</label><input name="myBuild" />
+          </div>
+          <div class="field">
+            <label>상대 빌드</label><input name="enemyBuild" />
+          </div>
+          <div class="field"><label>맵</label><input name="map" /></div>
+          <div class="field">
+            <label>패인</label
+            ><select name="cause">
+              <option></option>
+              <option>멀티</option>
+              <option>빌드</option>
+              <option>컨트롤</option>
+              <option>운영</option>
+              <option>판단</option>
+              <option>견제</option>
+              <option>멘탈</option>
+            </select>
+          </div>
+          <div class="field span2">
+            <label>느낀점</label><textarea name="note" rows="3"></textarea>
+          </div>
+          <div class="field span2">
+            <label>피드백</label><textarea name="feedback" rows="3"></textarea>
+          </div>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn secondary" onclick="dlg.close()">
+            취소
+          </button>
+          <button class="btn">저장</button>
+        </div>
+      </form>
+    </dialog>
+    <script src="./config.js"></script>
+    <script src="./ui.js"></script>
+  </body>
+</html>
