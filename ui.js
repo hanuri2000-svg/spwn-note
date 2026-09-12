@@ -1,5 +1,6 @@
 const STORAGE_KEY = "spawnNote.records.v1";
 const PLAYER_KEY = "spawnNote.eloPlayer";
+const DASHBOARD_CACHE_KEY = "spawnNote.eloDashboard.v1";
 const RIVAL_PLAYER_KEY = "spawnNote.rivalPlayer";
 const RIVAL_OPPONENT_KEY = "spawnNote.rivalOpponent";
 const LEGACY_STORAGE_KEY = "new" + "catsleSpawnNote.records.v1";
@@ -8,6 +9,10 @@ const ELO_API_BASE = String(window.SPAWN_NOTE_ELO_API_BASE || "").replace(/\/$/,
 
 let records = [];
 let eloPreviewRecords = [];
+let eloDashboard = null;
+let eloDashboardPlayer = "";
+let eloDashboardLoading = false;
+let eloDashboardError = "";
 
 const $ = (selector) => document.querySelector(selector);
 const form = document.getElementById("form");
@@ -58,6 +63,44 @@ function saveRecords() {
   }
 }
 
+function getBasePlayer() {
+  return String(
+    localStorage.getItem(PLAYER_KEY) ||
+      localStorage.getItem(RIVAL_PLAYER_KEY) ||
+      localStorage.getItem(LEGACY_PLAYER_KEY) ||
+      "",
+  ).trim();
+}
+
+function saveBasePlayerName(player) {
+  localStorage.setItem(PLAYER_KEY, player);
+  localStorage.setItem(RIVAL_PLAYER_KEY, player);
+}
+
+function localDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function readDashboardCache(player) {
+  try {
+    const cached = JSON.parse(localStorage.getItem(DASHBOARD_CACHE_KEY) || "null");
+    return cached && normalizeName(cached.player) === normalizeName(player) ? cached.data : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeDashboardCache(player, data) {
+  try {
+    localStorage.setItem(DASHBOARD_CACHE_KEY, JSON.stringify({ player, data }));
+  } catch (error) {
+    console.warn("ELOBOARD 대시보드 임시 저장에 실패했어.", error);
+  }
+}
+
 async function fetchJson(url, options) {
   const response = await fetch(url, options);
   const data = await response.json().catch(() => ({}));
@@ -67,8 +110,16 @@ async function fetchJson(url, options) {
 
 function load() {
   records = readRecords();
+  const player = getBasePlayer();
+  if (player) {
+    saveBasePlayerName(player);
+    eloDashboard = readDashboardCache(player);
+    eloDashboardPlayer = player;
+  }
+  loadBasePlayerInputs();
   renderAll();
   loadRivalInputs();
+  if (player) refreshEloDashboard();
 }
 
 function pct(wins, total) {
@@ -94,35 +145,42 @@ function showTab(tab) {
 }
 
 function renderDash() {
-  const now = new Date();
-  const monday = new Date(now);
-  monday.setHours(0, 0, 0, 0);
-  monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
-
-  const month = records.filter((record) => {
-    const date = new Date(`${record.date}T00:00:00`);
-    return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
-  });
-  const week = records.filter((record) => new Date(`${record.date}T00:00:00`) >= monday);
-  const allStats = stat(records);
-  const monthStats = stat(month);
-  const weekStats = stat(week);
+  const player = getBasePlayer();
+  const summary =
+    eloDashboard && normalizeName(eloDashboardPlayer) === normalizeName(player)
+      ? eloDashboard
+      : null;
+  const blank = { wins: 0, losses: 0, games: 0, winRate: 0 };
+  const allStats = summary?.overall || blank;
+  const monthStats = summary?.month || blank;
+  const weekStats = summary?.week || blank;
   const last = [...records].sort(
     (a, b) => String(b.date).localeCompare(String(a.date)) || Number(b.id) - Number(a.id),
   )[0];
+  const statText = (value) => (summary ? `${value.wins}승 ${value.losses}패` : "-");
+  const statSub = (value) =>
+    summary ? `총 ${value.games}경기 · 승률 ${value.winRate}%` : player ? "ELOBOARD 조회 중" : "기준 선수 설정 필요";
 
   $("#cards").innerHTML =
-    card("🏆 전체 전적", `${allStats.w}승 ${allStats.l}패`, `${allStats.p}%`) +
-    card("📅 이번 달", `${monthStats.w}승 ${monthStats.l}패`, `${monthStats.p}%`) +
-    card("📆 이번 주", `${weekStats.w}승 ${weekStats.l}패`, `${weekStats.p}%`) +
-    card("🎮 총 스폰", `${allStats.t}경기`, "SEASON 2026") +
-    card("📌 최근 기록", last ? last.date : "-", "자동 저장");
+    card("🏆 전체 전적", statText(allStats), statSub(allStats)) +
+    card("📅 이번 달", statText(monthStats), statSub(monthStats)) +
+    card("📆 이번 주", statText(weekStats), statSub(weekStats)) +
+    card("🎮 총 경기", summary ? `${summary.totalGames}경기` : "-", "ELOBOARD 전체 공식전") +
+    card("📌 최근 작성", last ? last.date : "-", "내 스폰일지");
 
-  $("#races").innerHTML = ["테란", "저그", "토스"]
-    .map((race) => {
-      const raceStats = stat(records.filter((record) => record.race === race));
-      const icon = race === "테란" ? "👽" : race === "저그" ? "🐜" : "⚔️";
-      return `<div class="race"><b>${icon} vs ${race}</b><div class="big">${raceStats.w}승 ${raceStats.l}패</div><div class="sub">승률 ${raceStats.p}%</div></div>`;
+  $("#races").innerHTML = [
+    { race: "T", raceLabel: "테란" },
+    { race: "Z", raceLabel: "저그" },
+    { race: "P", raceLabel: "토스" },
+  ]
+    .map((raceInfo) => {
+      const raceStats = summary?.races?.find((item) => item.race === raceInfo.race) || blank;
+      const icon = raceInfo.race === "T" ? "👽" : raceInfo.race === "Z" ? "🐜" : "⚔️";
+      return `<div class="race"><b>${icon} vs ${raceInfo.raceLabel}</b><div class="big">${
+        summary ? `${raceStats.wins}승 ${raceStats.losses}패` : "-"
+      }</div><div class="sub">${
+        summary ? `총 ${raceStats.games}경기 · 승률 ${raceStats.winRate}%` : "ELOBOARD 기준"
+      }</div></div>`;
     })
     .join("");
 
@@ -143,24 +201,108 @@ function renderDash() {
         )
         .join("")
     : '<div class="empty">기록이 없어</div>';
+
+  renderBasePlayerStatus();
 }
 
 function card(heading, body, sub) {
   return `<div class="card"><h3>${heading}</h3><div class="big">${body}</div><div class="sub">${sub}</div></div>`;
 }
 
+function loadBasePlayerInputs() {
+  const player = getBasePlayer();
+  const input = $("#basePlayer");
+  if (input) input.value = player;
+  const eloPlayer = $("#eloPlayer");
+  if (eloPlayer) eloPlayer.value = player;
+}
+
+function renderBasePlayerStatus() {
+  const status = $("#basePlayerStatus");
+  if (!status) return;
+  const player = getBasePlayer();
+  if (!player) {
+    status.textContent = "ELOBOARD에 등록된 여자부 선수 이름을 한 번 저장해줘.";
+    return;
+  }
+  if (eloDashboardLoading) {
+    status.textContent = `${player} 선수의 ELOBOARD 전체 공식전 통계를 불러오고 있어…`;
+    return;
+  }
+  if (eloDashboardError) {
+    status.textContent = eloDashboardError;
+    return;
+  }
+  if (eloDashboard?.player) {
+    const info = eloDashboard.player;
+    status.textContent = `${info.name} · ${info.raceLabel || "종족 미상"} · ELO ${
+      info.elo || "-"
+    }${eloDashboard.latestMatchDate ? ` · 최근 경기 ${eloDashboard.latestMatchDate}` : ""}`;
+    return;
+  }
+  status.textContent = `${player} 선수를 기준으로 ELOBOARD 통계를 준비하고 있어.`;
+}
+
+async function refreshEloDashboard() {
+  const player = getBasePlayer();
+  if (!player || !ELO_API_BASE) {
+    eloDashboardError = !ELO_API_BASE ? "ELO 조회 서버가 아직 연결되지 않았어." : "";
+    renderDash();
+    return;
+  }
+  eloDashboardLoading = true;
+  eloDashboardError = "";
+  renderDash();
+  const button = $("#basePlayerSaveButton");
+  if (button) button.disabled = true;
+  try {
+    const query = new URLSearchParams({ player, today: localDateKey() });
+    const data = await fetchJson(`${ELO_API_BASE}/api/elo/dashboard?${query}`);
+    eloDashboard = data;
+    eloDashboardPlayer = player;
+    writeDashboardCache(player, data);
+  } catch (error) {
+    eloDashboardError = error.message;
+  } finally {
+    eloDashboardLoading = false;
+    if (button) button.disabled = false;
+    renderDash();
+  }
+}
+
+async function saveBasePlayer() {
+  const input = $("#basePlayer");
+  const player = String(input?.value || "").trim();
+  if (!player || player.length > 30) {
+    eloDashboardError = "기준 선수 이름을 1~30자로 입력해줘.";
+    renderBasePlayerStatus();
+    return;
+  }
+  const changed = normalizeName(player) !== normalizeName(getBasePlayer());
+  saveBasePlayerName(player);
+  if (changed) {
+    eloDashboard = readDashboardCache(player);
+    eloDashboardPlayer = player;
+  }
+  loadBasePlayerInputs();
+  loadRivalInputs();
+  $("#rivalResult")?.classList.add("hidden");
+  await refreshEloDashboard();
+}
+
 function loadRivalInputs() {
   const baseInput = $("#rivalPlayer");
   const opponentInput = $("#rivalOpponent");
   if (!baseInput || !opponentInput) return;
-  baseInput.value =
-    localStorage.getItem(RIVAL_PLAYER_KEY) ||
-    localStorage.getItem(PLAYER_KEY) ||
-    localStorage.getItem(LEGACY_PLAYER_KEY) ||
-    "";
+  const player = getBasePlayer();
+  baseInput.value = player;
+  const baseName = $("#rivalBaseName");
+  if (baseName) baseName.textContent = player || "먼저 기준 선수를 저장해줘";
   opponentInput.value = localStorage.getItem(RIVAL_OPPONENT_KEY) || "";
-  $("#rivalStatus").textContent = ELO_API_BASE
-    ? "두 선수 이름을 입력하면 ELOBOARD 기준 상대전적을 확인할 수 있어."
+  $("#rivalStatus").textContent = !player
+    ? "위에서 기준 선수를 먼저 저장해줘."
+    : ELO_API_BASE
+      ? `${player} 선수를 기준으로 상대 이름만 입력하면 돼.`
     : "ELO 조회 중계 서버가 아직 연결되지 않았어.";
 }
 
@@ -207,10 +349,12 @@ function renderRivalResult(data) {
 }
 
 async function searchRival() {
-  const player = $("#rivalPlayer").value.trim();
+  const player = getBasePlayer();
   const opponent = $("#rivalOpponent").value.trim();
   if (!player || !opponent) {
-    $("#rivalStatus").textContent = "기준 선수와 상대 선수 이름을 모두 입력해줘.";
+    $("#rivalStatus").textContent = player
+      ? "상대 선수 이름을 입력해줘."
+      : "위에서 기준 선수를 먼저 저장해줘.";
     return;
   }
   if (normalizeName(player) === normalizeName(opponent)) {
@@ -222,9 +366,7 @@ async function searchRival() {
     return;
   }
 
-  localStorage.setItem(RIVAL_PLAYER_KEY, player);
   localStorage.setItem(RIVAL_OPPONENT_KEY, opponent);
-  localStorage.setItem(PLAYER_KEY, player);
   $("#rivalSearchButton").disabled = true;
   $("#rivalStatus").textContent = "ELOBOARD에서 상대전적을 확인하고 있어…";
   $("#rivalResult").classList.add("hidden");
@@ -447,9 +589,8 @@ function markDuplicates(items) {
 
 function openEloDialog() {
   eloPreviewRecords = [];
-  const savedPlayer = localStorage.getItem(PLAYER_KEY) || localStorage.getItem(LEGACY_PLAYER_KEY) || "";
+  const savedPlayer = getBasePlayer();
   $("#eloPlayer").value = savedPlayer;
-  if (savedPlayer && !localStorage.getItem(PLAYER_KEY)) localStorage.setItem(PLAYER_KEY, savedPlayer);
   const latestDate = [...records]
     .map((record) => record.date)
     .filter(Boolean)
@@ -458,7 +599,9 @@ function openEloDialog() {
   $("#eloFromDate").value =
     latestDate || new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
   $("#eloStatus").textContent = ELO_API_BASE
-    ? "선수 이름과 조회 시작 날짜를 확인한 뒤 전적 조회를 눌러줘."
+    ? savedPlayer
+      ? "기준 선수와 조회 시작 날짜를 확인한 뒤 전적 조회를 눌러줘."
+      : "대시보드에서 기준 선수를 먼저 저장해줘."
     : "ELO 자동 조회 중계 서버가 아직 연결되지 않았어.";
   $("#eloPreviewBody").innerHTML =
     '<tr><td colspan="8" class="empty">아직 조회하지 않았어</td></tr>';
@@ -472,7 +615,7 @@ async function previewElo() {
   const fromDate = $("#eloFromDate").value;
   const pages = $("#eloPages").value;
   if (!player) {
-    alert("선수 이름을 입력해줘.");
+    alert("대시보드에서 기준 선수를 먼저 저장해줘.");
     return;
   }
   if (!ELO_API_BASE) {
@@ -480,7 +623,6 @@ async function previewElo() {
       "ELO 조회 서버 주소가 설정되지 않았어. 저장소의 config.js에 중계 서버 주소를 입력해줘.";
     return;
   }
-  localStorage.setItem(PLAYER_KEY, player);
   $("#eloLookupButton").disabled = true;
   $("#eloImportButton").disabled = true;
   $("#eloStatus").textContent = "ELOBOARD에서 전적을 확인하고 있어…";
