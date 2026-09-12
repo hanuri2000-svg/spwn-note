@@ -140,7 +140,7 @@ test("공용 이름과 화면 버전을 표시한다", () => {
   const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
   const manifest = fs.readFileSync(new URL("../manifest.webmanifest", import.meta.url), "utf8");
   assert.match(html, />스폰노트 /);
-  assert.match(html, />v1\.4\.0</);
+  assert.match(html, />v1\.4\.1</);
   assert.match(html, /id="basePlayer"/);
   assert.match(html, /id="tierTab"/);
   assert.match(html, /id="tierGroups"/);
@@ -149,6 +149,17 @@ test("공용 이름과 화면 버전을 표시한다", () => {
   assert.match(html, /id="rivalOpponent"/);
   const oldBrand = new RegExp(["NEW", "CATSLE"].join("\\s*") + "|뉴" + "캣슬", "i");
   assert.doesNotMatch(`${html}\n${manifest}`, oldBrand);
+});
+
+test("NEW CATSLE 배경은 독립 화면에만 표시한다", () => {
+  const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  const serviceWorker = fs.readFileSync(new URL("../sw.js", import.meta.url), "utf8");
+  assert.match(html, /html:not\(\.embed-mode\) body::before/);
+  assert.match(html, /html\.embed-mode body::before/);
+  assert.match(html, /documentElement\.classList\.add\("embed-mode"\)/);
+  assert.match(html, /\.\/assets\/brand-watermark\.png/);
+  assert.match(serviceWorker, /spawn-note-v1\.4\.1/);
+  assert.match(serviceWorker, /\.\/assets\/brand-watermark\.png/);
 });
 
 test("ELOBOARD 티어표를 불러와 복수 티어와 LIVE 상태를 표시한다", async () => {

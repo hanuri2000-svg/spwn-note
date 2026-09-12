@@ -6,6 +6,11 @@
     <title>스폰노트</title>
     <meta name="theme-color" content="#5e3f5a" />
     <link rel="manifest" href="./manifest.webmanifest" />
+    <script>
+      if (new URLSearchParams(location.search).get("embed") === "1") {
+        document.documentElement.classList.add("embed-mode");
+      }
+    </script>
     <style>
       :root {
         --violet: #8b5574;
@@ -29,6 +34,23 @@
           radial-gradient(circle at 5% 90%, #f7e3ec 0, transparent 24%),
           linear-gradient(150deg, #fffafd, #f8f1f5);
         min-height: 100vh;
+      }
+      html:not(.embed-mode) body::before {
+        content: "";
+        position: fixed;
+        left: 72%;
+        top: 57%;
+        width: min(46vw, 720px);
+        aspect-ratio: 464 / 580;
+        transform: translate(-50%, -50%);
+        background: url("./assets/brand-watermark.png") center / contain
+          no-repeat;
+        opacity: 0.055;
+        pointer-events: none;
+        z-index: 20;
+      }
+      html.embed-mode body::before {
+        content: none;
       }
       header {
         background: linear-gradient(
@@ -713,6 +735,12 @@
         }
       }
       @media (max-width: 700px) {
+        html:not(.embed-mode) body::before {
+          left: 66%;
+          top: 60%;
+          width: 82vw;
+          opacity: 0.045;
+        }
         header {
           padding: 12px;
           flex-direction: column;
@@ -862,7 +890,7 @@
     <header>
       <div class="brand">
         <div class="brandtext">
-          <h1>스폰노트 <span class="version-badge">v1.4.0</span></h1>
+          <h1>스폰노트 <span class="version-badge">v1.4.1</span></h1>
           <div class="brand-subtitle">STARCRAFT RECORD</div>
         </div>
       </div>

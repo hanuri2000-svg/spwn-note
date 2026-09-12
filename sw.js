@@ -1,5 +1,12 @@
-const CACHE_NAME = "spawn-note-v1.4.0";
-const APP_FILES = ["./", "./index.html", "./ui.js", "./config.js", "./manifest.webmanifest"];
+const CACHE_NAME = "spawn-note-v1.4.1";
+const APP_FILES = [
+  "./",
+  "./index.html",
+  "./ui.js",
+  "./config.js",
+  "./manifest.webmanifest",
+  "./assets/brand-watermark.png",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_FILES)));
