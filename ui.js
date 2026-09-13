@@ -607,6 +607,7 @@ async function loadTierTable(force = false) {
   } finally {
     tierLoading = false;
     renderTierTable();
+    autoFillRecordPlayer(form?.elements?.opponent);
   }
 }
 
@@ -695,12 +696,52 @@ function toggleNote(id) {
   document.getElementById(`note-${id}`)?.classList.toggle("hidden");
 }
 
+function sharedPlayerDirectory() {
+  try {
+    return window.parent?.HARINA_PLAYER_DIRECTORY || window.HARINA_PLAYER_DIRECTORY || {};
+  } catch {
+    return {};
+  }
+}
+
+function findPlayerMeta(name) {
+  const key = normalizeName(name);
+  if (!key) return null;
+  const shared = sharedPlayerDirectory()[key];
+  if (shared) return shared;
+  const payload = tierPayload || readTierCache();
+  for (const tier of payload?.tiers || []) {
+    const player = (tier.players || []).find((item) => normalizeName(item.name) === key);
+    if (player) return { name: player.name, tier: tier.label || tier.tier || "", race: player.race || "" };
+  }
+  return null;
+}
+
+function formTierValue(value) {
+  return ({ 갓: "God", 킹: "King", 잭: "Jack", 조커: "Joker", 스페이드: "Spade", 베이비: "유스" })[value] || value || "";
+}
+
+function formRaceValue(value) {
+  return ({ P: "토스", T: "테란", Z: "저그", R: "랜덤" })[String(value || "").toUpperCase()] || value || "";
+}
+
+function autoFillRecordPlayer(input) {
+  if (!input || input !== form?.elements?.opponent) return;
+  const meta = findPlayerMeta(input.value);
+  if (!meta) return;
+  const tier = form.elements.tier;
+  const race = form.elements.race;
+  if (tier) tier.value = formTierValue(meta.tier);
+  if (race) race.value = formRaceValue(meta.race);
+}
+
 function openForm() {
   form.reset();
   form.id.value = "";
   form.date.value = new Date().toISOString().slice(0, 10);
   $("#formTitle").textContent = "기록 추가";
   dlg.showModal();
+  if (!tierPayload && !tierLoading) loadTierTable();
 }
 
 function editRec(id) {
