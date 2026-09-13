@@ -906,7 +906,7 @@
     <header>
       <div class="brand">
         <div class="brandtext">
-          <h1>스폰노트 <span class="version-badge">v1.4.6</span></h1>
+          <h1>스폰노트 <span class="version-badge">v1.5.0</span></h1>
           <div class="brand-subtitle">STARCRAFT RECORD</div>
         </div>
       </div>
@@ -1239,7 +1239,7 @@
             <label>날짜 *</label><input name="date" type="date" required />
           </div>
           <div class="field">
-            <label>상대 *</label><input name="opponent" required />
+            <label>상대 *</label><input name="opponent" required oninput="autoFillRecordPlayer(this)" />
           </div>
           <div class="field">
             <label>티어</label
@@ -1313,6 +1313,6 @@
       </form>
     </dialog>
     <script src="./config.js"></script>
-    <script src="./ui.js"></script>
+    <script src="./ui.js?v=1.5.0"></script>
   </body>
 </html>
