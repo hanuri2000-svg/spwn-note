@@ -64,7 +64,11 @@ function createContext({ apiBase = "", fetchImpl = fetch } = {}) {
   const form = createElement();
   form.id = createElement();
   form.date = createElement();
-  form.elements = {};
+  form.elements = {
+    opponent: createElement(),
+    tier: createElement(),
+    race: createElement(),
+  };
   const dlg = createElement();
   const eloDlg = createElement();
   elements.set("form", form);
@@ -140,7 +144,7 @@ test("공용 이름과 화면 버전을 표시한다", () => {
   const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
   const manifest = fs.readFileSync(new URL("../manifest.webmanifest", import.meta.url), "utf8");
   assert.match(html, />스폰노트 /);
-  assert.match(html, />v1\.4\.6</);
+  assert.match(html, />v1\.5\.0</);
   assert.match(html, /기준 선수의 ELOBOARD 전체 공식전을 기준으로\s*집계·표시됩니다\./);
   assert.match(html, /id="basePlayer"/);
   assert.match(html, /id="tierTab"/);
@@ -160,7 +164,7 @@ test("NEW CATSLE 배경은 독립 화면에만 표시한다", () => {
   assert.match(html, /documentElement\.classList\.add\("embed-mode"\)/);
   assert.match(html, /\.\/assets\/brand-watermark\.png/);
   assert.match(html, /opacity: 0\.12/);
-  assert.match(serviceWorker, /spawn-note-v1\.4\.6/);
+  assert.match(serviceWorker, /spawn-note-v1\.5\.0/);
   assert.match(serviceWorker, /\.\/assets\/brand-watermark\.png/);
 });
 
@@ -210,6 +214,18 @@ test("ELOBOARD 티어표를 불러와 복수 티어와 LIVE 상태를 표시한�
   vm.runInContext("toggleTierLevel('8티어'); toggleTierLevel('7티어')", context);
   assert.match(elements.get("tierLevelFilters").innerHTML, /✓ 8티어/);
   assert.match(elements.get("tierLevelFilters").innerHTML, /✓ 7티어/);
+});
+
+test("상대 선수 이름이 티어표와 일치하면 티어와 종족을 자동 입력한다", () => {
+  const { context, elements } = createContext();
+  vm.runInContext(source, context);
+  vm.runInContext(
+    `tierPayload={tiers:[{label:'8티어',players:[{name:'단솔',race:'P'}]}]};form.elements.opponent.value='단솔';autoFillRecordPlayer(form.elements.opponent)`,
+    context,
+  );
+  const form = elements.get("form");
+  assert.equal(form.elements.tier.value, "8티어");
+  assert.equal(form.elements.race.value, "토스");
 });
 
 test("변경사항 선수는 SOOP 아이디가 없어도 닉네임과 변경 활동명으로 LIVE를 찾는다", async () => {
