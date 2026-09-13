@@ -1036,6 +1036,111 @@ function importSelectedElo() {
   alert(`ELO 전적 ${added}개를 추가했어.${skipped ? ` 중복·오류 ${skipped}개는 제외했어.` : ""}`);
 }
 
+
+/* v1.6.0 · shared player master DB */
+const PLAYER_MASTER_URL = "https://hanuri2000-svg.github.io/star-match-manager/players.json";
+let masterPlayerPayload = null;
+let masterPlayerDirectory = {};
+
+function masterNameKey(value) {
+  return String(value || "").normalize("NFKC").toLowerCase().replace(/[^0-9a-z가-힣]/g, "");
+}
+
+async function loadSharedPlayerMaster(force = false) {
+  try {
+    const response = await fetch(`${PLAYER_MASTER_URL}${force ? `?t=${Date.now()}` : ""}`, { cache: "no-store" });
+    if (!response.ok) throw new Error("공용 선수 DB를 불러오지 못했어.");
+    const payload = await response.json();
+    const players = Array.isArray(payload.players) ? payload.players.filter((p) => p && p.active !== false && p.name) : [];
+    const directory = {};
+    players.forEach((player) => {
+      const meta = { name: player.name, tier: player.tier || "", race: player.race || "" };
+      directory[masterNameKey(player.name)] = meta;
+      (player.aliases || []).forEach((alias) => { if (alias) directory[masterNameKey(alias)] = meta; });
+    });
+    masterPlayerPayload = payload;
+    masterPlayerDirectory = directory;
+
+    const order = Array.isArray(payload.tierOrder) ? payload.tierOrder : [];
+    const groups = new Map();
+    players.forEach((player) => {
+      const label = player.tierLabel || (player.tier === "유스" ? "베이비" : player.tier || "미지정");
+      if (!groups.has(label)) groups.set(label, []);
+      groups.get(label).push({
+        name: player.name,
+        race: player.race || "",
+        playerId: player.eloId || null,
+        soopId: player.soopId || "",
+        thumbUrl: player.thumbUrl || "",
+      });
+    });
+    const labels = [...order.map((t) => t === "유스" ? "베이비" : t), ...groups.keys()]
+      .filter((v, i, a) => a.indexOf(v) === i && groups.has(v));
+    tierPayload = {
+      version: payload.source?.version || "master",
+      updatedOn: payload.source?.date || payload.updatedAt || "",
+      tiers: labels.map((label) => ({ label, players: groups.get(label) })),
+    };
+    writeTierCache(tierPayload);
+
+    let list = document.getElementById("masterPlayerNames");
+    if (!list) {
+      list = document.createElement("datalist");
+      list.id = "masterPlayerNames";
+      document.body.appendChild(list);
+    }
+    list.innerHTML = players.map((p) => `<option value="${esc(p.name)}">${esc(p.tier || "")} · ${esc(p.race || "")}</option>`).join("");
+    const opponent = form?.elements?.opponent;
+    if (opponent) {
+      opponent.setAttribute("list", "masterPlayerNames");
+      autoFillRecordPlayer(opponent);
+    }
+    renderTierTable();
+    return payload;
+  } catch (error) {
+    console.warn("공용 선수 DB 연결 실패, 저장된/ELO 티어표 사용", error);
+    return null;
+  }
+}
+
+const legacySharedPlayerDirectory = sharedPlayerDirectory;
+sharedPlayerDirectory = function () {
+  let parentDirectory = {};
+  try { parentDirectory = window.parent?.HARINA_PLAYER_DIRECTORY || {}; } catch {}
+  return Object.assign({}, legacySharedPlayerDirectory(), parentDirectory, masterPlayerDirectory);
+};
+
+const legacyLoadTierTable = loadTierTable;
+loadTierTable = async function (force = false) {
+  if (tierLoading) return;
+  tierLoading = true;
+  tierError = "";
+  renderTierTable();
+  try {
+    const [masterResult] = await Promise.allSettled([loadSharedPlayerMaster(force), fetchTierLive()]);
+    if (masterResult.status === "rejected" || !masterResult.value) {
+      const cached = readTierCache();
+      if (cached) tierPayload = cached;
+      else return legacyLoadTierTable(force);
+    }
+    if (!tierRefreshTimer) {
+      tierRefreshTimer = setInterval(() => {
+        if (!$("#tier")?.classList.contains("hidden")) fetchTierLive().then(renderTierTable);
+      }, 60000);
+    }
+  } finally {
+    tierLoading = false;
+    renderTierTable();
+    autoFillRecordPlayer(form?.elements?.opponent);
+  }
+};
+
+const legacyLoad = load;
+load = function () {
+  legacyLoad();
+  loadSharedPlayerMaster(false);
+};
+
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
 }
