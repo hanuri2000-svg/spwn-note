@@ -1,4 +1,4 @@
-const CACHE_NAME = "spawn-note-v1.4.6";
+const CACHE_NAME = "spawn-note-v1.5.0";
 const APP_FILES = [
   "./",
   "./index.html",
