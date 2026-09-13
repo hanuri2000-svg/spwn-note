@@ -1,0 +1,17 @@
+name: Apply shared player master v1.6.0
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-shared-player-master-v160.yml'
+      - 'scripts/apply_shared_player_master.py'
+permissions:
+  contents: write
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply shared player master
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/apply_shared_player_master.py
