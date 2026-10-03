@@ -1,4 +1,4 @@
-const APP_VERSION = "1.7.6";
+const APP_VERSION = "1.7.7";
 const STORAGE_KEY = "spawnNote.records.v1";
 const PLAYER_KEY = "spawnNote.eloPlayer";
 const DASHBOARD_CACHE_KEY = "spawnNote.eloDashboard.v1";
@@ -787,7 +787,22 @@ function renderDashboardBreakdowns(summary) {
     ? eloDashboardError || "ELOBOARD 전체 공식전 통계를 불러오고 있어…"
     : "먼저 이름을 등록해줘.";
   const mapRows = summary?.maps || [];
-  const opponentRows = summary?.opponents || [];
+  const opponentSource = Array.isArray(summary?.opponents) ? summary.opponents : [];
+  const seenOpponents = new Set();
+  const opponentRows = opponentSource
+    .filter((row) => {
+      const key = normalizeName(row?.label || "");
+      if (!key || seenOpponents.has(key)) return false;
+      seenOpponents.add(key);
+      return true;
+    })
+    .sort(
+      (a, b) =>
+        String(b?.lastPlayedOn || "").localeCompare(String(a?.lastPlayedOn || "")) ||
+        Number(b?.games || 0) - Number(a?.games || 0) ||
+        String(a?.label || "").localeCompare(String(b?.label || ""), "ko"),
+    )
+    .slice(0, 20);
 
   root.innerHTML =
     (summary
