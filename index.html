@@ -1003,7 +1003,7 @@
     <header>
       <div class="brand">
         <div class="brandtext">
-          <h1>스폰노트 <span class="version-badge">v1.7.1</span></h1>
+          <h1>스폰노트 <span class="version-badge">v1.7.2</span></h1>
           <div class="brand-subtitle">STARCRAFT RECORD</div>
         </div>
       </div>
@@ -1102,7 +1102,7 @@
       <section id="dash">
         <div class="player-setting">
           <div class="player-setting-copy">
-            <strong>기준 선수 설정</strong>
+            <strong>스폰 작성자 설정</strong>
             <span>한 번 저장하면 대시보드, ELO 전적 가져오기, 상대전적 검색에 계속 적용돼.</span>
           </div>
           <div class="player-setting-controls">
@@ -1127,7 +1127,7 @@
           <div class="dashboard-breakdown-head">
             <h2>상세 전적</h2>
             <div id="dashboardBreakdownStatus" class="dashboard-breakdown-status" aria-live="polite">
-              맵·상대 선수별 전적은 기준 선수의 ELO 공식전, 빌드별 전적은 스폰일지 기록을 기준으로 해.
+              맵·상대 선수별 전적은 스폰 작성자의 ELO 공식전, 빌드별 전적은 스폰일지 기록을 기준으로 해.
             </div>
           </div>
           <div id="dashboardBreakdowns" class="dashboard-breakdowns"></div>
@@ -1136,8 +1136,8 @@
           <h2>🔎 ELOBOARD 상대전적 검색</h2>
           <div class="rival-search">
             <div class="rival-base-chip">
-              <span>기준 선수</span>
-              <b id="rivalBaseName">먼저 기준 선수를 저장해줘</b>
+              <span>스폰 작성자</span>
+              <b id="rivalBaseName">먼저 스폰 작성자를 저장해줘</b>
             </div>
             <input id="rivalPlayer" type="hidden" />
             <div class="field">
@@ -1161,7 +1161,7 @@
           <div class="recent" id="recent"></div>
         </div>
         <div class="notice">
-          ※ 기준 선수의 ELOBOARD 전체 공식전을 기준으로 집계·표시됩니다.<br>
+          ※ 스폰 작성자의 ELOBOARD 전체 공식전을 기준으로 집계·표시됩니다.<br>
           최근 작성 목록과 스폰일지의 메모·느낀점·피드백은 현재
           브라우저에 저장되며, 다른 기기로 옮길 때는 백업 파일을 사용해 주세요.
         </div>
@@ -1260,7 +1260,7 @@
       <div class="modalhead"><h2>ELOBOARD 전적 가져오기</h2></div>
       <div class="elo-controls">
         <div class="field">
-          <label>기준 선수</label
+          <label>스폰 작성자</label
           ><input
             id="eloPlayer"
             placeholder="대시보드에서 먼저 설정"
