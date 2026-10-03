@@ -184,7 +184,7 @@ function renderDash() {
   )[0];
   const statText = (value) => (summary ? `${value.wins}승 ${value.losses}패` : "-");
   const statSub = (value) =>
-    summary ? `총 ${value.games}경기 · 승률 ${value.winRate}%` : player ? "ELOBOARD 조회 중" : "기준 선수 설정 필요";
+    summary ? `총 ${value.games}경기 · 승률 ${value.winRate}%` : player ? "ELOBOARD 조회 중" : "스폰 작성자 설정 필요";
 
   $("#cards").innerHTML =
     card("🏆 전체 전적", statText(allStats), statSub(allStats)) +
@@ -300,7 +300,7 @@ async function saveBasePlayer() {
   const input = $("#basePlayer");
   const player = String(input?.value || "").trim();
   if (!player || player.length > 30) {
-    eloDashboardError = "기준 선수 이름을 1~30자로 입력해줘.";
+    eloDashboardError = "스폰 작성자 이름을 1~30자로 입력해줘.";
     renderBasePlayerStatus();
     return;
   }
@@ -323,10 +323,10 @@ function loadRivalInputs() {
   const player = getBasePlayer();
   baseInput.value = player;
   const baseName = $("#rivalBaseName");
-  if (baseName) baseName.textContent = player || "먼저 기준 선수를 저장해줘";
+  if (baseName) baseName.textContent = player || "먼저 스폰 작성자를 저장해줘";
   opponentInput.value = localStorage.getItem(RIVAL_OPPONENT_KEY) || "";
   $("#rivalStatus").textContent = !player
-    ? "위에서 기준 선수를 먼저 저장해줘."
+    ? "위에서 스폰 작성자를 먼저 저장해줘."
     : ELO_API_BASE
       ? `${player} 선수를 기준으로 상대 이름만 입력하면 돼.`
     : "ELO 조회 중계 서버가 아직 연결되지 않았어.";
@@ -380,7 +380,7 @@ async function searchRival() {
   if (!player || !opponent) {
     $("#rivalStatus").textContent = player
       ? "상대 선수 이름을 입력해줘."
-      : "위에서 기준 선수를 먼저 저장해줘.";
+      : "위에서 스폰 작성자를 먼저 저장해줘.";
     return;
   }
   if (normalizeName(player) === normalizeName(opponent)) {
@@ -698,7 +698,7 @@ function renderDashboardBreakdowns(summary) {
   const player = getBasePlayer();
   const eloWaiting = player
     ? eloDashboardError || "ELOBOARD 전체 공식전 통계를 불러오고 있어…"
-    : "먼저 기준 선수를 저장해줘.";
+    : "먼저 스폰 작성자를 저장해줘.";
   const mapRows = summary?.maps || [];
   const opponentRows = summary?.opponents || [];
 
@@ -722,7 +722,7 @@ function renderDashboardBreakdowns(summary) {
         " 선수의 ELOBOARD 전체 공식전 " +
         Number(summary.detailGames || 0) +
         "경기를 기준으로 맵·상대 전적을 계산했어. 빌드별 전적은 스폰일지 저장 기록 기준이야."
-      : "맵·상대 선수별 전적은 기준 선수의 ELO 공식전, 빌드별 전적은 스폰일지 기록을 기준으로 해.";
+      : "맵·상대 선수별 전적은 스폰 작성자의 ELO 공식전, 빌드별 전적은 스폰일지 기록을 기준으로 해.";
   }
 }
 
@@ -976,8 +976,8 @@ function openEloDialog() {
     latestDate || new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
   $("#eloStatus").textContent = ELO_API_BASE
     ? savedPlayer
-      ? "기준 선수와 조회 시작 날짜를 확인한 뒤 전적 조회를 눌러줘."
-      : "대시보드에서 기준 선수를 먼저 저장해줘."
+      ? "스폰 작성자와 조회 시작 날짜를 확인한 뒤 전적 조회를 눌러줘."
+      : "대시보드에서 스폰 작성자를 먼저 저장해줘."
     : "ELO 자동 조회 중계 서버가 아직 연결되지 않았어.";
   $("#eloPreviewBody").innerHTML =
     '<tr><td colspan="8" class="empty">아직 조회하지 않았어</td></tr>';
@@ -991,7 +991,7 @@ async function previewElo() {
   const fromDate = $("#eloFromDate").value;
   const pages = $("#eloPages").value;
   if (!player) {
-    alert("대시보드에서 기준 선수를 먼저 저장해줘.");
+    alert("대시보드에서 스폰 작성자를 먼저 저장해줘.");
     return;
   }
   if (!ELO_API_BASE) {
