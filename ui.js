@@ -1,3 +1,4 @@
+const APP_VERSION = "1.7.6";
 const STORAGE_KEY = "spawnNote.records.v1";
 const PLAYER_KEY = "spawnNote.eloPlayer";
 const DASHBOARD_CACHE_KEY = "spawnNote.eloDashboard.v1";
@@ -125,6 +126,92 @@ async function fetchJson(url, options) {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || "요청을 처리하지 못했어.");
   return data;
+}
+
+async function latestAppVersion() {
+  const response = await fetch("./version.json?t=" + Date.now(), { cache: "no-store" });
+  if (!response.ok) throw new Error("버전 정보를 확인하지 못했어.");
+  const data = await response.json();
+  const version = String(data.version || "").trim();
+  if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error("버전 정보가 올바르지 않아.");
+  return { ...data, version };
+}
+
+function versionNumbers(version) {
+  return String(version || "")
+    .split(".")
+    .map((value) => Number(value) || 0);
+}
+
+function isNewerVersion(latest, current) {
+  const a = versionNumbers(latest);
+  const b = versionNumbers(current);
+  for (let index = 0; index < Math.max(a.length, b.length); index += 1) {
+    if ((a[index] || 0) > (b[index] || 0)) return true;
+    if ((a[index] || 0) < (b[index] || 0)) return false;
+  }
+  return false;
+}
+
+async function checkForAppUpdate(manual = false) {
+  const button = $("#updateButton");
+  try {
+    const latest = await latestAppVersion();
+    if (isNewerVersion(latest.version, APP_VERSION)) {
+      if (button) {
+        button.textContent = "새 버전 v" + latest.version + " 적용";
+        button.classList.add("update-available");
+        button.title = latest.message || "새 업데이트가 있어";
+      }
+      if (manual) await applyLatestUpdate(latest.version);
+      return latest;
+    }
+    if (button) {
+      button.textContent = "최신 업데이트 적용";
+      button.classList.remove("update-available");
+      button.title = "현재 v" + APP_VERSION + " · 누르면 캐시를 비우고 최신 파일을 다시 받아";
+    }
+    if (manual) await applyLatestUpdate(latest.version);
+    return latest;
+  } catch (error) {
+    if (button) {
+      button.textContent = "업데이트 재시도";
+      button.title = error.message;
+    }
+    if (manual) alert(error.message);
+    return null;
+  }
+}
+
+async function applyLatestUpdate(knownVersion = "") {
+  const button = $("#updateButton");
+  if (button) {
+    button.disabled = true;
+    button.textContent = "업데이트 적용 중…";
+  }
+  try {
+    const latest = knownVersion ? { version: knownVersion } : await latestAppVersion();
+    if ("caches" in window) {
+      const keys = await caches.keys();
+      await Promise.all(
+        keys.filter((key) => key.startsWith("spawn-note-")).map((key) => caches.delete(key)),
+      );
+    }
+    if ("serviceWorker" in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((registration) => registration.update().catch(() => {})));
+    }
+    const url = new URL(location.href);
+    url.searchParams.set("appVersion", latest.version);
+    url.searchParams.set("updated", String(Date.now()));
+    location.replace(url.toString());
+  } catch (error) {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "업데이트 재시도";
+    }
+    alert(error.message || "최신 업데이트를 적용하지 못했어.");
+  }
 }
 
 function load() {
@@ -1230,3 +1317,4 @@ if ("serviceWorker" in navigator) {
 }
 
 load();
+checkForAppUpdate(false);
