@@ -227,7 +227,7 @@ function renderDash() {
         .join("")
     : '<div class="empty">기록이 없어</div>';
 
-  renderDashboardBreakdowns();
+  renderDashboardBreakdowns(summary);
   renderBasePlayerStatus();
 }
 
@@ -644,11 +644,10 @@ function eloDetails(record) {
 }
 
 
-function dashboardBreakdownRows(key, emptyLabel) {
+function localBuildRows() {
   const groups = new Map();
   records.forEach((record) => {
-    const raw = String(record[key] || "").trim();
-    const label = raw || emptyLabel;
+    const label = String(record.myBuild || "").trim() || "빌드 미입력";
     if (!groups.has(label)) groups.set(label, []);
     groups.get(label).push(record);
   });
@@ -657,52 +656,73 @@ function dashboardBreakdownRows(key, emptyLabel) {
     .sort((a, b) => b.t - a.t || b.p - a.p || a.label.localeCompare(b.label, "ko"));
 }
 
-function dashboardBreakdownTable(title, rows) {
+function dashboardBreakdownTable(title, rows = [], sourceLabel) {
   const body = rows.length
     ? rows
-        .map(
-          (row, index) =>
+        .map((row, index) => {
+          const wins = Number(row.wins ?? row.w ?? 0);
+          const losses = Number(row.losses ?? row.l ?? 0);
+          const winRate = Number(row.winRate ?? row.p ?? 0);
+          return (
             "<tr><td>" +
             (index + 1) +
             "</td><td><b>" +
             esc(row.label) +
             "</b></td><td>" +
-            row.w +
+            wins +
             "승 " +
-            row.l +
+            losses +
             "패</td><td>" +
-            row.p +
+            winRate +
             "%</td><td><div class=\"dashboard-stat-bar\"><i style=\"width:" +
-            row.p +
-            "%\"></i></div></td></tr>",
-        )
+            Math.max(0, Math.min(100, winRate)) +
+            "%\"></i></div></td></tr>"
+          );
+        })
         .join("")
-    : '<tr><td colspan="5" class="empty">저장된 기록이 없어</td></tr>';
+    : '<tr><td colspan="5" class="empty">표시할 기록이 없어</td></tr>';
   return (
     '<div class="dashboard-stat-panel"><h3>' +
     title +
-    '</h3><div class="dashboard-stat-tablewrap"><table><thead><tr><th>#</th><th>구분</th><th>전적</th><th>승률</th><th>비율</th></tr></thead><tbody>' +
+    ' <span class="dashboard-source-badge">' +
+    sourceLabel +
+    '</span></h3><div class="dashboard-stat-tablewrap"><table><thead><tr><th>#</th><th>구분</th><th>전적</th><th>승률</th><th>비율</th></tr></thead><tbody>' +
     body +
     "</tbody></table></div></div>"
   );
 }
 
-function renderDashboardBreakdowns() {
+function renderDashboardBreakdowns(summary) {
   const root = $("#dashboardBreakdowns");
   if (!root) return;
+  const player = getBasePlayer();
+  const eloWaiting = player
+    ? eloDashboardError || "ELOBOARD 전체 공식전 통계를 불러오고 있어…"
+    : "먼저 기준 선수를 저장해줘.";
+  const mapRows = summary?.maps || [];
+  const opponentRows = summary?.opponents || [];
+
   root.innerHTML =
-    dashboardBreakdownTable("맵별 전적", dashboardBreakdownRows("map", "맵 미입력")) +
-    dashboardBreakdownTable("빌드별 전적", dashboardBreakdownRows("myBuild", "빌드 미입력")) +
-    dashboardBreakdownTable(
-      "상대 선수별 전적",
-      dashboardBreakdownRows("opponent", "상대 미입력"),
-    );
+    (summary
+      ? dashboardBreakdownTable("맵별 전적", mapRows, "ELO 기준")
+      : '<div class="dashboard-stat-panel"><h3>맵별 전적 <span class="dashboard-source-badge">ELO 기준</span></h3><div class="empty">' +
+        esc(eloWaiting) +
+        "</div></div>") +
+    dashboardBreakdownTable("빌드별 전적", localBuildRows(), "스폰일지 기준") +
+    (summary
+      ? dashboardBreakdownTable("상대 선수별 전적", opponentRows, "ELO 기준")
+      : '<div class="dashboard-stat-panel"><h3>상대 선수별 전적 <span class="dashboard-source-badge">ELO 기준</span></h3><div class="empty">' +
+        esc(eloWaiting) +
+        "</div></div>");
+
   const note = $("#dashboardBreakdownStatus");
   if (note) {
-    note.textContent =
-      "스폰일지에 저장된 전체 " +
-      records.length +
-      "경기를 기준으로 계산했어. ELO에서 가져온 기록과 직접 작성한 기록이 함께 포함돼.";
+    note.textContent = summary
+      ? String(summary.player?.name || player) +
+        " 선수의 ELOBOARD 전체 공식전 " +
+        Number(summary.detailGames || 0) +
+        "경기를 기준으로 맵·상대 전적을 계산했어. 빌드별 전적은 스폰일지 저장 기록 기준이야."
+      : "맵·상대 선수별 전적은 기준 선수의 ELO 공식전, 빌드별 전적은 스폰일지 기록을 기준으로 해.";
   }
 }
 
