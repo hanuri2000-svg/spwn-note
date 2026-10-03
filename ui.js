@@ -157,15 +157,19 @@ function stat(list) {
 function renderAll() {
   renderDash();
   renderTable();
+  renderAnalysis();
 }
 
 function showTab(tab) {
   $("#dash").classList.toggle("hidden", tab !== "dash");
   $("#log").classList.toggle("hidden", tab !== "log");
+  $("#analysis").classList.toggle("hidden", tab !== "analysis");
   $("#tier").classList.toggle("hidden", tab !== "tier");
   $("#dashTab").classList.toggle("active", tab === "dash");
   $("#logTab").classList.toggle("active", tab === "log");
+  $("#analysisTab").classList.toggle("active", tab === "analysis");
   $("#tierTab").classList.toggle("active", tab === "tier");
+  if (tab === "analysis") renderAnalysis();
   if (tab === "tier" && !tierPayload && !tierLoading) loadTierTable();
 }
 
@@ -640,6 +644,182 @@ function eloDetails(record) {
   if (record.eloMatchType) parts.push(record.eloMatchType);
   if (record.eloMemo) parts.push(record.eloMemo);
   return `<div class="elo-detail">${parts.map(esc).join(" · ")}</div>`;
+}
+
+
+function analysisPeriodChanged() {
+  const custom = $("#analysisCustomDates");
+  const isCustom = $("#analysisPeriod")?.value === "custom";
+  if (custom) custom.classList.toggle("hidden", !isCustom);
+  renderAnalysis();
+}
+
+function analysisDateKey(date) {
+  const value = String(date || "").slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
+}
+
+function analysisMonday(date) {
+  const copy = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const day = copy.getDay() || 7;
+  copy.setDate(copy.getDate() - day + 1);
+  return [
+    copy.getFullYear(),
+    String(copy.getMonth() + 1).padStart(2, "0"),
+    String(copy.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function analysisRecords() {
+  const period = $("#analysisPeriod")?.value || "all";
+  const source = $("#analysisSource")?.value || "all";
+  const today = localDateKey();
+  const monthStart = today.slice(0, 7) + "-01";
+  const weekStart = analysisMonday(new Date());
+  const from = analysisDateKey($("#analysisFrom")?.value);
+  const to = analysisDateKey($("#analysisTo")?.value);
+
+  return records.filter((record) => {
+    const date = analysisDateKey(record.date);
+    if (source === "elo" && record.source !== "eloboard") return false;
+    if (source === "manual" && record.source === "eloboard") return false;
+    if (period === "month" && (!date || date < monthStart || date > today)) return false;
+    if (period === "week" && (!date || date < weekStart || date > today)) return false;
+    if (period === "custom") {
+      if (from && (!date || date < from)) return false;
+      if (to && (!date || date > to)) return false;
+    }
+    return true;
+  });
+}
+
+function analysisStatText(list) {
+  const value = stat(list);
+  return {
+    main: value.t ? value.w + "승 " + value.l + "패" : "기록 없음",
+    sub: "총 " + value.t + "경기 · 승률 " + value.p + "%",
+  };
+}
+
+function analysisGroup(list, key, emptyLabel) {
+  const groups = new Map();
+  list.forEach((record) => {
+    const raw = String(record[key] || "").trim();
+    const label = raw || emptyLabel;
+    if (!groups.has(label)) groups.set(label, []);
+    groups.get(label).push(record);
+  });
+  return [...groups.entries()]
+    .map(([label, group]) => ({ label, ...stat(group) }))
+    .sort((a, b) => b.t - a.t || b.p - a.p || a.label.localeCompare(b.label, "ko"));
+}
+
+function analysisTable(title, rows, options = {}) {
+  const limit = options.limit || 8;
+  const visible = rows.slice(0, limit);
+  const body = visible.length
+    ? visible
+        .map(
+          (row, index) =>
+            "<tr><td>" +
+            (index + 1) +
+            "</td><td><b>" +
+            esc(row.label) +
+            "</b></td><td>" +
+            row.w +
+            "승 " +
+            row.l +
+            "패</td><td>" +
+            row.p +
+            "%</td><td><div class=\"analysis-bar\"><i style=\"width:" +
+            row.p +
+            "%\"></i></div></td></tr>",
+        )
+        .join("")
+    : '<tr><td colspan="5" class="empty">분석할 기록이 없어</td></tr>';
+  return (
+    '<div class="analysis-panel"><h3>' +
+    title +
+    '</h3><div class="analysis-tablewrap"><table><thead><tr><th>#</th><th>구분</th><th>전적</th><th>승률</th><th>비율</th></tr></thead><tbody>' +
+    body +
+    "</tbody></table></div></div>"
+  );
+}
+
+function renderAnalysis() {
+  const root = $("#analysis");
+  if (!root) return;
+  const list = analysisRecords().sort(
+    (a, b) => String(b.date).localeCompare(String(a.date)) || Number(b.id) - Number(a.id),
+  );
+  const recent10 = list.slice(0, 10);
+  const recent30 = list.slice(0, 30);
+  const all = analysisStatText(list);
+  const ten = analysisStatText(recent10);
+  const thirty = analysisStatText(recent30);
+  const feedbackCount = list.filter((record) => String(record.feedback || "").trim()).length;
+  const feedbackRate = list.length ? Math.round((feedbackCount / list.length) * 100) : 0;
+
+  const cards = $("#analysisCards");
+  if (cards) {
+    cards.innerHTML =
+      card("📊 선택 기간", all.main, all.sub) +
+      card("🔥 최근 10경기", ten.main, ten.sub) +
+      card("🗓️ 최근 30경기", thirty.main, thirty.sub) +
+      card(
+        "💬 피드백 작성",
+        list.length ? feedbackCount + "/" + list.length + "경기" : "기록 없음",
+        "작성률 " + feedbackRate + "%",
+      );
+  }
+
+  const grids = $("#analysisGrids");
+  if (grids) {
+    grids.innerHTML =
+      analysisTable("상대 종족별", analysisGroup(list, "race", "종족 미입력")) +
+      analysisTable("맵별", analysisGroup(list, "map", "맵 미입력")) +
+      analysisTable("사용 빌드별", analysisGroup(list, "myBuild", "빌드 미입력")) +
+      analysisTable("상대 선수별", analysisGroup(list, "opponent", "상대 미입력"), { limit: 10 });
+  }
+
+  const causeRows = analysisGroup(
+    list.filter((record) => record.result === "패"),
+    "cause",
+    "패인 미입력",
+  );
+  const cause = $("#analysisCauses");
+  if (cause) {
+    cause.innerHTML = causeRows.length
+      ? causeRows
+          .slice(0, 10)
+          .map(
+            (row, index) =>
+              '<div class="cause-row"><span>' +
+              (index + 1) +
+              "</span><b>" +
+              esc(row.label) +
+              "</b><em>" +
+              row.t +
+              "회</em></div>",
+          )
+          .join("")
+      : '<div class="empty">패배 기록이나 입력된 패인이 없어</div>';
+  }
+
+  const sourceValue = $("#analysisSource")?.value || "all";
+  const sourceNames = {
+    all: "전체 저장 기록",
+    elo: "ELO에서 가져온 기록",
+    manual: "직접 작성한 기록",
+  };
+  const status = $("#analysisStatus");
+  if (status) {
+    status.textContent =
+      sourceNames[sourceValue] +
+      " " +
+      list.length +
+      "경기를 분석했어. ELO 공식전 전체가 아니라 스폰일지에 저장된 기록을 기준으로 해.";
+  }
 }
 
 function renderTable() {
