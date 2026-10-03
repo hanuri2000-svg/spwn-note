@@ -1,10 +1,11 @@
-const CACHE_NAME = "spawn-note-v1.7.5";
+const CACHE_NAME = "spawn-note-v1.7.6";
 const APP_FILES = [
   "./",
   "./index.html",
   "./ui.js",
   "./config.js",
   "./manifest.webmanifest",
+  "./version.json",
   "./assets/brand-watermark.png",
 ];
 
