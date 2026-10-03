@@ -783,9 +783,170 @@
         .tier-groups {
           grid-template-columns: 1fr;
         }
+
+        .analysis-head {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+        .analysis-cards,
+        .analysis-grids,
+        .cause-list {
+          grid-template-columns: 1fr;
+        }
+        .analysis-filters,
+        .analysis-custom-dates {
+          align-items: stretch;
+          flex-direction: column;
+        }
+        .analysis-filters select,
+        .analysis-filters input {
+          width: 100%;
+        }
       }
       @media (min-width: 701px) and (max-width: 1100px) {
         .tier-groups { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      }
+
+      .analysis-head {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 14px;
+        margin-bottom: 14px;
+      }
+      .analysis-head h2 {
+        margin: 0 0 5px;
+        color: #513849;
+        font-size: 22px;
+      }
+      .analysis-head p {
+        margin: 0;
+        color: #745e6b;
+        font-size: 13px;
+      }
+      .analysis-filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 14px;
+        padding: 12px;
+        border: 1px solid #e3d1dc;
+        border-radius: 12px;
+        background: #fbf3f7;
+      }
+      .analysis-filters select,
+      .analysis-filters input {
+        min-height: 39px;
+        padding: 8px 10px;
+        border: 1px solid #d9c2cf;
+        border-radius: 9px;
+        background: #fff;
+        color: #483440;
+        font-weight: 750;
+      }
+      .analysis-custom-dates {
+        display: flex;
+        gap: 7px;
+        align-items: center;
+      }
+      .analysis-custom-dates span {
+        color: #765f6d;
+        font-weight: 800;
+      }
+      .analysis-cards {
+        grid-template-columns: repeat(4, minmax(165px, 1fr));
+      }
+      .analysis-status {
+        margin: -3px 0 15px;
+        padding: 10px 12px;
+        border-radius: 9px;
+        background: #f6eaf0;
+        color: #624656;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .analysis-grids {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        margin-bottom: 16px;
+      }
+      .analysis-panel {
+        overflow: hidden;
+        border: 1px solid #e2cfda;
+        border-radius: 13px;
+        background: #fff;
+        box-shadow: 0 6px 18px #633d510d;
+      }
+      .analysis-panel h3 {
+        margin: 0;
+        padding: 12px 14px;
+        border-bottom: 1px solid #ead7e1;
+        background: linear-gradient(90deg, #f5e8f0, #f8f1fb);
+        color: #543847;
+        font-size: 15px;
+      }
+      .analysis-tablewrap {
+        overflow: auto;
+      }
+      .analysis-panel table {
+        font-size: 12px;
+      }
+      .analysis-panel th {
+        position: static;
+        background: #684d62;
+      }
+      .analysis-panel th,
+      .analysis-panel td {
+        padding: 8px;
+      }
+      .analysis-bar {
+        width: 90px;
+        height: 7px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: #f0e1e9;
+      }
+      .analysis-bar i {
+        display: block;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #8b5574, #d28cab);
+      }
+      .cause-list {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .cause-row {
+        display: grid;
+        grid-template-columns: 28px 1fr auto;
+        gap: 8px;
+        align-items: center;
+        padding: 10px 12px;
+        border: 1px solid #ead7e1;
+        border-radius: 9px;
+        background: #fffafd;
+      }
+      .cause-row span {
+        display: grid;
+        width: 24px;
+        height: 24px;
+        place-items: center;
+        border-radius: 50%;
+        background: #8b5574;
+        color: #fff;
+        font-size: 11px;
+        font-weight: 900;
+      }
+      .cause-row b {
+        color: #4d3744;
+      }
+      .cause-row em {
+        color: #8b5574;
+        font-style: normal;
+        font-weight: 900;
       }
       .notice {
         margin: 18px 2px 5px;
@@ -906,7 +1067,7 @@
     <header>
       <div class="brand">
         <div class="brandtext">
-          <h1>스폰노트 <span class="version-badge">v1.6.0</span></h1>
+          <h1>스폰노트 <span class="version-badge">v1.7.0</span></h1>
           <div class="brand-subtitle">STARCRAFT RECORD</div>
         </div>
       </div>
@@ -916,6 +1077,7 @@
           <button id="dashTab" class="active" onclick="showTab('dash')">
             대시보드</button
           ><button id="logTab" onclick="showTab('log')">스폰일지</button
+          ><button id="analysisTab" onclick="showTab('analysis')">경기 분석</button
           ><button id="tierTab" onclick="showTab('tier')">티어표</button>
         </div>
       </div>
@@ -1104,6 +1266,46 @@
             </thead>
             <tbody id="tbody"></tbody>
           </table>
+        </div>
+      </section>
+
+      <section id="analysis" class="hidden">
+        <div class="section">
+          <div class="analysis-head">
+            <div>
+              <h2>경기 분석</h2>
+              <p>스폰일지에 저장된 기록을 기간과 출처별로 나눠서 복습할 수 있어.</p>
+            </div>
+          </div>
+          <div class="analysis-filters">
+            <select id="analysisPeriod" onchange="analysisPeriodChanged()" aria-label="분석 기간">
+              <option value="all">전체 기간</option>
+              <option value="month">이번 달</option>
+              <option value="week">이번 주</option>
+              <option value="custom">직접 설정</option>
+            </select>
+            <select id="analysisSource" onchange="renderAnalysis()" aria-label="기록 출처">
+              <option value="all">전체 기록</option>
+              <option value="elo">ELO에서 가져온 기록</option>
+              <option value="manual">직접 작성한 기록</option>
+            </select>
+            <div id="analysisCustomDates" class="analysis-custom-dates hidden">
+              <input id="analysisFrom" type="date" onchange="renderAnalysis()" aria-label="분석 시작 날짜" />
+              <span>~</span>
+              <input id="analysisTo" type="date" onchange="renderAnalysis()" aria-label="분석 종료 날짜" />
+            </div>
+          </div>
+          <div id="analysisStatus" class="analysis-status" aria-live="polite"></div>
+          <div id="analysisCards" class="cards analysis-cards"></div>
+        </div>
+        <div id="analysisGrids" class="analysis-grids"></div>
+        <div class="section">
+          <h2>패배 원인 순위</h2>
+          <div id="analysisCauses" class="cause-list"></div>
+        </div>
+        <div class="notice">
+          ※ 경기 분석은 ELOBOARD 전체 공식전이 아니라 스폰일지에 저장된 기록을 기준으로 계산됩니다.<br />
+          ELO에서 가져온 경기라도 빌드·패인·피드백을 입력하지 않았다면 해당 분석에서는 미입력으로 표시됩니다.
         </div>
       </section>
       <section id="tier" class="hidden">
@@ -1313,6 +1515,6 @@
       </form>
     </dialog>
     <script src="./config.js"></script>
-    <script src="./ui.js?v=1.5.0"></script>
+    <script src="./ui.js?v=1.7.0"></script>
   </body>
 </html>
