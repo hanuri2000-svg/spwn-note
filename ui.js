@@ -711,7 +711,7 @@ function renderDashboardBreakdowns(summary) {
     dashboardBreakdownTable("빌드별 전적", localBuildRows(), "스폰일지 기준") +
     (summary
       ? dashboardBreakdownTable("상대 선수별 전적 · 최근 20명", opponentRows, "ELO 기준")
-      : '<div class="dashboard-stat-panel"><h3>상대 선수별 전적 <span class="dashboard-source-badge">ELO 기준</span></h3><div class="empty">' +
+      : '<div class="dashboard-stat-panel"><h3>상대 선수별 전적 · 최근 20명 <span class="dashboard-source-badge">ELO 기준</span></h3><div class="empty">' +
         esc(eloWaiting) +
         "</div></div>");
 
