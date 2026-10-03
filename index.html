@@ -122,6 +122,27 @@
         opacity: 0.65;
         cursor: wait;
       }
+      .update-button {
+        border: 1px solid #ffffff55 !important;
+        background: #fff !important;
+        color: #5e3f5a !important;
+        box-shadow: 0 4px 12px #12091b22;
+        white-space: nowrap;
+      }
+      .update-button.update-available {
+        background: #f6d7e5 !important;
+        color: #7b294f !important;
+        animation: updatePulse 1.6s ease-in-out infinite;
+      }
+      .update-button:disabled {
+        opacity: 0.7;
+        cursor: wait;
+      }
+      @keyframes updatePulse {
+        50% {
+          box-shadow: 0 0 0 5px #f1aac744;
+        }
+      }
       .tablewrap th:nth-child(10),
       .tablewrap td:nth-child(10) {
         width: 420px;
@@ -1003,12 +1024,21 @@
     <header>
       <div class="brand">
         <div class="brandtext">
-          <h1>스폰노트 <span class="version-badge">v1.7.5</span></h1>
+          <h1>스폰노트 <span class="version-badge">v1.7.6</span></h1>
           <div class="brand-subtitle">STARCRAFT RECORD</div>
         </div>
       </div>
       <div class="headright">
         <div class="storage-note">이 기기에 자동 저장</div>
+        <button
+          id="updateButton"
+          type="button"
+          class="btn update-button"
+          onclick="checkForAppUpdate(true)"
+          title="현재 버전 v1.7.6"
+        >
+          최신 업데이트 적용
+        </button>
         <div class="tabs">
           <button id="dashTab" class="active" onclick="showTab('dash')">
             대시보드</button
@@ -1420,6 +1450,6 @@
       </form>
     </dialog>
     <script src="./config.js"></script>
-    <script src="./ui.js?v=1.7.5-r2"></script>
+    <script src="./ui.js?v=1.7.6-final"></script>
   </body>
 </html>
