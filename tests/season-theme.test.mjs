@@ -44,7 +44,7 @@ function simulate(initialMonth, embedded=false) {
   const timers=[];
   vm.runInNewContext(script,{
     document,window,location:{search:embedded?"?embed=1":""},URLSearchParams,
-    Intl:{DateTimeFormat:()=>({format:()=>String(month)})},
+    Intl:{DateTimeFormat:function DateTimeFormat(){this.format=()=>String(month);}},
     Date,setInterval(callback,delay){timers.push({callback,delay})}
   });
   return {root,children,heading,timers,listeners,styles,setMonth(value){month=value},document};
