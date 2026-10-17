@@ -12,6 +12,8 @@ function createElement() {
     files: [],
     innerHTML: "",
     reset() {},
+    setAttribute() {},
+    appendChild() {},
     showModal() {},
     textContent: "",
     value: "",
@@ -145,7 +147,7 @@ test("공용 이름과 화면 버전을 표시한다", () => {
   const manifest = fs.readFileSync(new URL("../manifest.webmanifest", import.meta.url), "utf8");
   assert.match(html, />스폰노트 /);
   assert.match(html, />v1\.7\.8</);
-  assert.match(html, /기준 선수의 ELOBOARD 전체 공식전을 기준으로\s*집계·표시됩니다\./);
+  assert.match(html, /등록된 이름의 ELOBOARD 전체 공식전을 기준으로\s*집계·표시됩니다\./);
   assert.match(html, /id="basePlayer"/);
   assert.match(html, /id="tierTab"/);
   assert.match(html, /id="tierGroups"/);
@@ -176,6 +178,11 @@ test("제작자 표기는 독립 화면 하단에만 표시한다", () => {
 
 test("ELOBOARD 티어표를 불러와 복수 티어와 LIVE 상태를 표시한다", async () => {
   const fetchImpl = async (url) => {
+    if (String(url).includes("/players.json")) {
+      return new Response(JSON.stringify({"source":{"version":"3.61","date":"2026-08-29"},"tierOrder":["8티어","7티어"],"players":[{"name":"단솔","tier":"8티어","race":"P","soopId":"danso","eloId":833,"thumbUrl":"players/833.jpg"},{"name":"퀸주","tier":"7티어","race":"Z","soopId":"queenzu","eloId":844,"thumbUrl":""}]}), {
+        status: 200, headers: { "Content-Type": "application/json" },
+      });
+    }
     const data = String(url).includes("dorang-live")
       ? {
           updatedAt: "2026-09-12T07:14:57.530Z",
@@ -230,6 +237,11 @@ test("상대 선수 이름이 티어표와 일치하면 티어와 종족을 자�
 
 test("변경사항 선수는 SOOP 아이디가 없어도 닉네임과 변경 활동명으로 LIVE를 찾는다", async () => {
   const fetchImpl = async (url) => {
+    if (String(url).includes("/players.json")) {
+      return new Response(JSON.stringify({"source":{"version":"3.61","date":"2026-08-29"},"tierOrder":["8티어","유스"],"players":[{"name":"가영","tier":"8티어","race":"T","soopId":"","eloId":849},{"name":"빵체리","tier":"유스","tierLabel":"베이비","race":"P","soopId":"","eloId":6487}]}), {
+        status: 200, headers: { "Content-Type": "application/json" },
+      });
+    }
     const data = String(url).includes("dorang-live")
       ? {
           updatedAt: "2026-09-12T07:51:18.141Z",
