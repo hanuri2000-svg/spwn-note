@@ -144,7 +144,7 @@ test("공용 이름과 화면 버전을 표시한다", () => {
   const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
   const manifest = fs.readFileSync(new URL("../manifest.webmanifest", import.meta.url), "utf8");
   assert.match(html, />스폰노트 /);
-  assert.match(html, />v1\.5\.0</);
+  assert.match(html, />v1\.7\.8</);
   assert.match(html, /기준 선수의 ELOBOARD 전체 공식전을 기준으로\s*집계·표시됩니다\./);
   assert.match(html, /id="basePlayer"/);
   assert.match(html, /id="tierTab"/);
@@ -164,7 +164,7 @@ test("NEW CATSLE 배경은 독립 화면에만 표시한다", () => {
   assert.match(html, /documentElement\.classList\.add\("embed-mode"\)/);
   assert.match(html, /\.\/assets\/brand-watermark\.png/);
   assert.match(html, /opacity: 0\.12/);
-  assert.match(serviceWorker, /spawn-note-v1\.5\.0/);
+  assert.match(serviceWorker, /spawn-note-v1\.7\.8/);
   assert.match(serviceWorker, /\.\/assets\/brand-watermark\.png/);
 });
 
@@ -384,4 +384,27 @@ test("저장한 기준 선수의 ELOBOARD 전체 공식전 통계를 대시보�
   assert.match(elements.get("races").innerHTML, /93승 76패/);
   assert.equal(elements.get("rivalBaseName").textContent, "단솔");
   assert.equal(elements.get("eloPlayer").value, "단솔");
+});
+
+test("티어표는 72px 프로필과 종족·이름 / LIVE 두 줄을 사용한다", () => {
+  const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  assert.match(source, /class="tier-player-identity"/);
+  assert.match(source, /liveUrl \? "is-live" : ""/);
+  assert.match(html, /grid-template-columns:72px minmax\\(0,1fr\\)/);
+  assert.match(html, /width:72px;height:72px/);
+  assert.match(html, /\\.tier-player>\\.tier-live\\s*\\{grid-column:2;grid-row:2/);
+  assert.match(html, /\\.tier-players \\{ grid-template-columns: minmax\\(0,1fr\\)/);
+});
+test("LIVE 방송 미리보기는 지연 실행되고 음소거·종료·SOOP 주소검사를 갖는다", () => {
+  const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  const match = html.match(/<script id="tier-live-preview-script">([\\s\\S]*?)<\\/script>/);
+  assert.ok(match, "missing preview script");
+  new vm.Script(match[1], { filename: "tier-live-preview-script" });
+  assert.match(match[1], /const delayMs = 450/);
+  assert.match(match[1], /mutePlay=true/);
+  assert.match(match[1], /pointerover/);
+  assert.match(match[1], /pointerout/);
+  assert.match(match[1], /url\\.protocol!==="https:"/);
+  assert.match(match[1], /video\\.replaceChildren\\(\\)/);
+  assert.match(match[1], /event\\.preventDefault\\(\\)/);
 });

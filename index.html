@@ -1019,12 +1019,57 @@
         font-weight: 900;
       }
     </style>
+    <style id="tier-live-layout-css">
+      /* Tier-player layout: 72px profile, name/race above LIVE. */
+      .tier-players { grid-template-columns: minmax(0,1fr); gap:6px; padding:7px; }
+      .tier-player {
+        display:grid; grid-template-columns:72px minmax(0,1fr);
+        grid-template-rows:minmax(31px,auto) minmax(29px,auto);
+        column-gap:11px;row-gap:2px;align-items:center;min-width:0;
+        min-height:94px;padding:9px 11px;border:1px solid #f0e4eb;border-radius:11px;
+      }
+      .tier-player>.tier-avatar-link {
+        grid-column:1;grid-row:1/span 2;width:72px;height:72px;
+        align-self:center;justify-self:center;
+      }
+      .tier-player .tier-avatar {width:100%;height:100%;object-fit:cover}
+      .tier-avatar-fallback {display:grid;place-items:center;font-size:15px}
+      .tier-player>.tier-player-identity {
+        display:flex;align-items:center;gap:7px;min-width:0;max-width:100%;
+        grid-column:2;grid-row:1;
+      }
+      .tier-player-identity>.tier-race {flex:0 0 23px}
+      .tier-player-identity>.tier-player-name {
+        min-width:0;flex:1;overflow:hidden;white-space:nowrap;
+        text-overflow:ellipsis;font-size:14px;
+      }
+      .tier-player>.tier-live {grid-column:2;grid-row:2;justify-self:start;align-self:center;font-size:11px}
+      .tier-player:not(.is-live)>.tier-player-identity {grid-row:1/span 2;align-self:center}
+      @media(max-width:400px){.tier-groups{grid-template-columns:1fr}.tier-player{column-gap:9px;padding:8px 9px}}
+      .tier-live-preview[hidden]{display:none!important}
+      .tier-live-preview{
+        position:fixed;z-index:99999;width:min(440px,calc(100vw - 20px));
+        border:1px solid #d6bce5;border-radius:15px;overflow:hidden;
+        background:#fffaff;color:#34273e;box-shadow:0 20px 56px #26133350;
+        font-family:Arial,"Malgun Gothic",sans-serif;
+      }
+      .tier-live-preview-head{display:flex;gap:8px;align-items:center;padding:9px 11px;background:#f7eafb}
+      .tier-live-preview-title{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:900;font-size:13px}
+      .tier-live-preview-badge{color:#bd1d45;font-size:11px;font-weight:900}
+      .tier-live-preview-close{padding:0;width:29px;height:29px;border:1px solid #d9c8e0;border-radius:8px;background:#fff;color:#483255;font-size:20px;cursor:pointer}
+      .tier-live-preview-video{width:100%;aspect-ratio:16/9;background:#121017}
+      .tier-live-preview-video iframe{display:block;width:100%;height:100%;border:0}
+      .tier-live-preview-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 10px;font-size:11px}
+      .tier-live-preview-foot span{min-width:0;color:#60536a}
+      .tier-live-preview-open{flex:none;background:#674b86;color:#fff!important;padding:7px 9px;border-radius:8px;text-decoration:none;font-size:11px;font-weight:900}
+      @media(prefers-reduced-motion:reduce){.tier-live-preview{scroll-behavior:auto}}
+    </style>
   </head>
   <body>
     <header>
       <div class="brand">
         <div class="brandtext">
-          <h1>스폰노트 <span class="version-badge">v1.7.7</span></h1>
+          <h1>스폰노트 <span class="version-badge">v1.7.8</span></h1>
           <div class="brand-subtitle">STARCRAFT RECORD</div>
         </div>
       </div>
@@ -1035,7 +1080,7 @@
           type="button"
           class="btn update-button"
           onclick="checkForAppUpdate(true)"
-          title="현재 버전 v1.7.7"
+          title="현재 버전 v1.7.8"
         >
           최신 업데이트 적용
         </button>
@@ -1278,7 +1323,7 @@
             <div class="empty tier-empty">티어표를 불러올 준비 중이야</div>
           </div>
           <p class="tier-note">
-            여러 티어를 동시에 선택할 수 있어. 선수 사진은 SOOP 방송국, 이름은 ELOBOARD 선수 페이지로 연결돼.
+            여러 티어를 동시에 선택할 수 있어. 프로필은 SOOP 방송국, 이름은 ELOBOARD로 이동해. LIVE에 마우스를 올리거나 터치하면 방송 미리보기가 열려.
           </p>
         </div>
       </section>
@@ -1450,6 +1495,94 @@
       </form>
     </dialog>
     <script src="./config.js"></script>
-    <script src="./ui.js?v=1.7.7-opponent20"></script>
+    <script src="./ui.js?v=1.7.8"></script>
+
+    <script id="tier-live-preview-script">
+    (() => {
+      "use strict";
+      if (new URLSearchParams(location.search).get("embed") === "1") return;
+      const delayMs = 450;
+      const pop = document.createElement("section");
+      pop.className = "tier-live-preview";
+      pop.hidden = true;
+      pop.setAttribute("role","group");
+      pop.setAttribute("aria-label","SOOP 방송 미리보기");
+      pop.innerHTML = '<div class="tier-live-preview-head"><span class="tier-live-preview-title"></span><span class="tier-live-preview-badge">● LIVE</span><button type="button" class="tier-live-preview-close" aria-label="닫기">×</button></div><div class="tier-live-preview-video"></div><div class="tier-live-preview-foot"><span>방송이 안 보이면 SOOP에서 열어줘.</span><a class="tier-live-preview-open" target="_blank" rel="noopener noreferrer">SOOP에서 보기 ↗</a></div>';
+      document.body.appendChild(pop);
+      const title=pop.querySelector(".tier-live-preview-title");
+      const video=pop.querySelector(".tier-live-preview-video");
+      const link=pop.querySelector(".tier-live-preview-open");
+      let active=null, showTimer=0, closeTimer=0;
+      const clearTimers=()=>{clearTimeout(showTimer);clearTimeout(closeTimer);showTimer=0;closeTimer=0};
+      function embedUrl(raw){
+        try {
+          const url=new URL(raw);
+          if(url.protocol!=="https:" || !["play.sooplive.com","play.sooplive.co.kr","ch.sooplive.co.kr","ch.sooplive.com"].includes(url.hostname.toLowerCase()))return "";
+          const path=url.pathname.split("/").filter(Boolean),id=path[0]||"";
+          if(!/^[a-z0-9_-]{1,40}$/i.test(id))return "";
+          const number=path[1]&&/^\d{1,20}$/.test(path[1])?"/"+path[1]:"";
+          return "https://play.sooplive.com/"+encodeURIComponent(id)+number+"/embed?autoPlay=true&mutePlay=true&showChat=false";
+        }catch{return ""}
+      }
+      function reposition(anchor){
+        const r=anchor.getBoundingClientRect(),w=Math.min(440,window.innerWidth-20);
+        const h=pop.getBoundingClientRect().height||315;
+        pop.style.width=w+"px";
+        pop.style.left=Math.max(10,Math.min(window.innerWidth-w-10,r.left+r.width/2-w/2))+"px";
+        pop.style.top=(r.bottom+h+12<window.innerHeight?r.bottom+12:Math.max(8,r.top-h-12))+"px";
+      }
+      function close(){clearTimers();active=null;pop.hidden=true;video.replaceChildren()}
+      function open(anchor){
+        if(!anchor?.isConnected)return;
+        const src=embedUrl(anchor.href);
+        if(!src)return;
+        clearTimers();
+        if(active===anchor&&!pop.hidden){reposition(anchor);return}
+        active=anchor;
+        title.textContent=(anchor.closest(".tier-player")?.querySelector(".tier-player-name")?.textContent?.trim()||"선수")+" 방송 미리보기";
+        link.href=anchor.href;
+        video.replaceChildren();
+        const iframe=document.createElement("iframe");
+        iframe.title="SOOP LIVE 방송";
+        iframe.src=src;
+        iframe.loading="eager";
+        iframe.referrerPolicy="strict-origin-when-cross-origin";
+        iframe.setAttribute("allow","autoplay; encrypted-media; fullscreen; picture-in-picture");
+        iframe.setAttribute("allowfullscreen","");
+        video.appendChild(iframe);
+        pop.hidden=false;
+        reposition(anchor);
+      }
+      const delayedClose=()=>{clearTimeout(closeTimer);closeTimer=setTimeout(close,220)};
+      document.addEventListener("pointerover",event=>{
+        if(event.pointerType==="touch")return;
+        const a=event.target.closest?.(".tier-live");
+        if(!a||a.contains(event.relatedTarget))return;
+        clearTimers();showTimer=setTimeout(()=>open(a),delayMs);
+      });
+      document.addEventListener("pointerout",event=>{
+        if(event.pointerType==="touch")return;
+        const a=event.target.closest?.(".tier-live");
+        if(!a||a.contains(event.relatedTarget))return;
+        clearTimeout(showTimer);showTimer=0;
+        if(!pop.hidden)delayedClose();
+      });
+      pop.addEventListener("pointerenter",()=>clearTimeout(closeTimer));
+      pop.addEventListener("pointerleave",delayedClose);
+      pop.querySelector(".tier-live-preview-close").addEventListener("click",close);
+      document.addEventListener("click",event=>{
+        const a=event.target.closest?.(".tier-live");
+        if(a){
+          if(window.matchMedia("(hover: hover) and (pointer: fine)").matches)return;
+          event.preventDefault();
+          if(active===a&&!pop.hidden)close();else open(a);
+        }else if(!pop.hidden&&!pop.contains(event.target))close();
+      },true);
+      document.addEventListener("keydown",event=>{if(event.key==="Escape"&&!pop.hidden)close()});
+      window.addEventListener("scroll",()=>{if(!pop.hidden)close()},{passive:true,capture:true});
+      window.addEventListener("resize",()=>{if(!pop.hidden&&active)reposition(active)});
+      document.addEventListener("visibilitychange",()=>{if(document.hidden)close()});
+    })();
+    </script>
   </body>
 </html>

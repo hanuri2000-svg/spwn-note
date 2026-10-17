@@ -1,4 +1,4 @@
-const APP_VERSION = "1.7.7";
+const APP_VERSION = "1.7.8";
 const STORAGE_KEY = "spawnNote.records.v1";
 const PLAYER_KEY = "spawnNote.eloPlayer";
 const DASHBOARD_CACHE_KEY = "spawnNote.eloDashboard.v1";
@@ -544,7 +544,7 @@ function tierPlayerCard(player) {
   const channelUrl = player.soopId ? `https://ch.sooplive.co.kr/${encodeURIComponent(player.soopId)}` : "";
   const imageUrl = player.thumbUrl ? `https://eloboard.co.kr/static/${player.thumbUrl}` : "";
   const avatarUrl = liveUrl || channelUrl || tierProfileUrl(player);
-  return `<div class="tier-player race-${esc(player.race)}">
+  return `<div class="tier-player race-${esc(player.race)} ${liveUrl ? "is-live" : ""}">
     <a class="tier-avatar-link" href="${esc(avatarUrl)}" target="_blank" rel="noopener noreferrer" title="${
       liveUrl ? "현재 SOOP 방송 보기" : "선수 정보 보기"
     }">
@@ -559,10 +559,10 @@ function tierPlayerCard(player) {
         String(player.name || "?").slice(0, 1),
       )}</span>
     </a>
-    <b class="tier-race">${esc(player.race)}</b>
+    <span class="tier-player-identity"><b class="tier-race">${esc(player.race)}</b>
     <a class="tier-player-name" href="${esc(tierProfileUrl(player))}" target="_blank" rel="noopener noreferrer">${esc(
       player.name,
-    )}</a>
+    )}</a></span>
     ${
       liveUrl
         ? `<a class="tier-live" href="${esc(
