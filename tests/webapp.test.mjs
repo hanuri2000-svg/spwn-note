@@ -386,25 +386,26 @@ test("저장한 기준 선수의 ELOBOARD 전체 공식전 통계를 대시보�
   assert.equal(elements.get("eloPlayer").value, "단솔");
 });
 
+
 test("티어표는 72px 프로필과 종족·이름 / LIVE 두 줄을 사용한다", () => {
   const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
-  assert.match(source, /class="tier-player-identity"/);
-  assert.match(source, /liveUrl \? "is-live" : ""/);
-  assert.match(html, /grid-template-columns:72px minmax\\(0,1fr\\)/);
-  assert.match(html, /width:72px;height:72px/);
-  assert.match(html, /\\.tier-player>\\.tier-live\\s*\\{grid-column:2;grid-row:2/);
-  assert.match(html, /\\.tier-players \\{ grid-template-columns: minmax\\(0,1fr\\)/);
+  assert.ok(source.includes('class="tier-player-identity"'));
+  assert.ok(source.includes('liveUrl ? "is-live" : ""'));
+  assert.ok(html.includes("grid-template-columns:72px minmax(0,1fr)"));
+  assert.ok(html.includes("width:72px;height:72px"));
+  assert.ok(html.includes(".tier-player>.tier-live {grid-column:2;grid-row:2"));
+  assert.ok(html.includes(".tier-players { grid-template-columns: minmax(0,1fr)"));
 });
 test("LIVE 방송 미리보기는 지연 실행되고 음소거·종료·SOOP 주소검사를 갖는다", () => {
   const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
-  const match = html.match(/<script id="tier-live-preview-script">([\\s\\S]*?)<\\/script>/);
-  assert.ok(match, "missing preview script");
-  new vm.Script(match[1], { filename: "tier-live-preview-script" });
-  assert.match(match[1], /const delayMs = 450/);
-  assert.match(match[1], /mutePlay=true/);
-  assert.match(match[1], /pointerover/);
-  assert.match(match[1], /pointerout/);
-  assert.match(match[1], /url\\.protocol!==="https:"/);
-  assert.match(match[1], /video\\.replaceChildren\\(\\)/);
-  assert.match(match[1], /event\\.preventDefault\\(\\)/);
+  const marker = '<script id="tier-live-preview-script">';
+  const start = html.indexOf(marker);
+  const end = html.indexOf("</script>", start);
+  assert.ok(start > -1 && end > start, "missing preview script");
+  const snippet = html.slice(start + marker.length, end);
+  new vm.Script(snippet, { filename: "tier-live-preview-script" });
+  for (const item of [
+    "const delayMs = 450", "mutePlay=true", "pointerover",
+    "pointerout", "url.protocol!==\"https:\"", "video.replaceChildren()", "event.preventDefault()"
+  ]) assert.ok(snippet.includes(item), "missing " + item);
 });
