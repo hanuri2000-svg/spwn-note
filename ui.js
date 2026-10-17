@@ -1,4 +1,4 @@
-const APP_VERSION = "1.7.9";
+const APP_VERSION = "1.7.10";
 const STORAGE_KEY = "spawnNote.records.v1";
 const PLAYER_KEY = "spawnNote.eloPlayer";
 const DASHBOARD_CACHE_KEY = "spawnNote.eloDashboard.v1";

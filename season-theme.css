@@ -1,0 +1,121 @@
+/* Independent SPAWN Note monthly themes. Theme palette is set on <html>. */
+html[data-spwn-season] body {
+  background:
+    radial-gradient(circle at 8% -4%, var(--spwn-glow1), transparent 38rem),
+    radial-gradient(circle at 94% 22%, var(--spwn-glow2), transparent 35rem),
+    linear-gradient(150deg, var(--spwn-bg), var(--spwn-soft) 56%, var(--spwn-bg));
+  background-attachment: fixed;
+}
+html[data-spwn-season] body::before {
+  /* Keep the original brand watermark, but never overlay the calendar-themed content. */
+  opacity: 0.045;
+  width: min(38vw, 540px);
+  left: 79%;
+  top: 62%;
+  z-index: 0;
+}
+html[data-spwn-season] body > header,
+html[data-spwn-season] body > main,
+html[data-spwn-season] body > .site-credit {
+  position: relative;
+  z-index: 1;
+}
+html[data-spwn-season] body > header {
+  background: linear-gradient(110deg, var(--spwn-header), var(--spwn-accent));
+  border-bottom: 2px solid color-mix(in srgb, var(--spwn-accent) 45%, #ffffff);
+  box-shadow: 0 8px 28px rgba(39, 39, 61, .14);
+  color: #fff;
+}
+html[data-spwn-season] .brand-subtitle { color: #fff; }
+html[data-spwn-season] .brandtext h1 .version-badge {
+  color: var(--spwn-header);
+  background: #fff;
+}
+.spwn-season-badge {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 11px;
+  padding: 5px 9px;
+  border: 1px solid rgba(255,255,255,.42);
+  border-radius: 999px;
+  background: rgba(255,255,255,.16);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: normal;
+  white-space: nowrap;
+}
+.spwn-season-decor {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+.spwn-season-decor span {
+  position: absolute;
+  display: block;
+  font-size: clamp(48px, 7vw, 104px);
+  line-height: 1;
+  opacity: .18;
+  filter: saturate(.85);
+}
+.spwn-season-decor span:nth-child(1) { top: 16%; left: 1%; transform: rotate(-15deg); }
+.spwn-season-decor span:nth-child(2) { top: 28%; right: 2%; transform: rotate(13deg); }
+.spwn-season-decor span:nth-child(3) { bottom: 7%; left: 7%; transform: rotate(-12deg); }
+html[data-spwn-season] .tabs button.active {
+  background: #fff;
+  color: var(--spwn-header);
+}
+html[data-spwn-season] .section,
+html[data-spwn-season] .card,
+html[data-spwn-season] .player-setting,
+html[data-spwn-season] .tier-group,
+html[data-spwn-season] .dashboard-stat-panel,
+html[data-spwn-season] .rival-result {
+  background: rgba(255,255,255,.95);
+  border-color: rgba(49,56,76,.15);
+  box-shadow: 0 8px 23px rgba(39,39,61,.08);
+}
+html[data-spwn-season] .player-setting { border-left-color: var(--spwn-accent); }
+html[data-spwn-season] .card { border-top-color: var(--spwn-accent); }
+html[data-spwn-season] .section h2,
+html[data-spwn-season] .tier-head h2,
+html[data-spwn-season] .card h3 { color: #26344c; }
+html[data-spwn-season] .tier-group > header {
+  background: color-mix(in srgb, var(--spwn-bg) 48%, white);
+  border-bottom-color: rgba(49,56,76,.17);
+  color: #2c3448;
+}
+html[data-spwn-season] .tier-group h3,
+html[data-spwn-season] .tier-player-name { color: #283247; }
+html[data-spwn-season] .tier-player:hover { background: color-mix(in srgb, var(--spwn-bg) 38%, white); }
+html[data-spwn-season] .tier-level-filters button.active,
+html[data-spwn-season] .tier-race-filters button.active {
+  border-color: var(--spwn-accent);
+  background: var(--spwn-accent);
+  color: #fff;
+}
+html[data-spwn-season] .btn:not(.secondary):not(.danger):not(.update-button) {
+  background: var(--spwn-accent);
+  color: #fff;
+}
+html[data-spwn-season] th,
+html[data-spwn-season] .modalhead {
+  background: var(--spwn-header);
+  color: #fff;
+}
+html[data-spwn-season] tbody tr:hover { outline-color: var(--spwn-accent); }
+html[data-spwn-season] .dashboard-stat-bar i { background: var(--spwn-accent); }
+html[data-spwn-season] .site-credit span { color: var(--spwn-accent); }
+@media(max-width:700px) {
+  html[data-spwn-season] body::before { width: min(62vw,390px); opacity: .035; }
+  .spwn-season-decor span { opacity: .10; font-size: clamp(40px,10vw,72px); }
+  .spwn-season-decor span:nth-child(2) { top: 40%; }
+  .spwn-season-badge { padding: 4px 7px; font-size: 10px; margin-left: 6px; }
+}
+@media print {
+  .spwn-season-decor { display: none !important; }
+  html[data-spwn-season] body::before { display: none !important; }
+}

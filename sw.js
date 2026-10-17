@@ -1,8 +1,10 @@
-const CACHE_NAME = "spawn-note-v1.7.9";
+const CACHE_NAME = "spawn-note-v1.7.10";
 const APP_FILES = [
   "./",
   "./index.html",
   "./ui.js",
+  "./season-theme.css",
+  "./season-theme.js",
   "./config.js",
   "./manifest.webmanifest",
   "./version.json",
