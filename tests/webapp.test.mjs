@@ -146,7 +146,7 @@ test("공용 이름과 화면 버전을 표시한다", () => {
   const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
   const manifest = fs.readFileSync(new URL("../manifest.webmanifest", import.meta.url), "utf8");
   assert.match(html, />스폰노트 /);
-  assert.match(html, />v1\.7\.8</);
+  assert.match(html, />v1\.7\.9</);
   assert.match(html, /등록된 이름의 ELOBOARD 전체 공식전을 기준으로\s*집계·표시됩니다\./);
   assert.match(html, /id="basePlayer"/);
   assert.match(html, /id="tierTab"/);
@@ -166,7 +166,7 @@ test("NEW CATSLE 배경은 독립 화면에만 표시한다", () => {
   assert.match(html, /documentElement\.classList\.add\("embed-mode"\)/);
   assert.match(html, /\.\/assets\/brand-watermark\.png/);
   assert.match(html, /opacity: 0\.12/);
-  assert.match(serviceWorker, /spawn-note-v1\.7\.8/);
+  assert.match(serviceWorker, /spawn-note-v1\.7\.9/);
   assert.match(serviceWorker, /\.\/assets\/brand-watermark\.png/);
 });
 
@@ -420,4 +420,44 @@ test("LIVE 방송 미리보기는 지연 실행되고 음소거·종료·SOOP �
     "const delayMs = 450", "mutePlay=true", "pointerover",
     "pointerout", "url.protocol!==\"https:\"", "video.replaceChildren()", "event.preventDefault()"
   ]) assert.ok(snippet.includes(item), "missing " + item);
+});
+
+test("선수 명단이 선로딩된 상태에서도 티어표 진입 시 LIVE를 자동 조회한다", async () => {
+  const fetched=[];
+  const master={source:{version:"3.62",date:"2026-09-21"},tierOrder:["8티어"],players:[{name:"단솔",tier:"8티어",race:"P",soopId:"danso",eloId:833}]};
+  const fetchImpl=async url=>{
+    fetched.push(String(url));
+    const data=String(url).includes("/players.json")?master:{updatedAt:"2026-10-17T00:00:00Z",live:[{soop_id:"danso",nick:"단솔",url:"https://play.sooplive.com/danso/123"}]};
+    return new Response(JSON.stringify(data),{status:200,headers:{"Content-Type":"application/json"}});
+  };
+  const {context,elements}=createContext({fetchImpl});
+  vm.runInContext(source,context);
+  await vm.runInContext("loadSharedPlayerMaster(false)",context);
+  assert.equal(fetched.filter(u=>u.includes("dorang-live")).length,0);
+  vm.runInContext("showTab('tier')",context);
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(fetched.filter(u=>u.includes("dorang-live")).length,1);
+  assert.match(elements.get("tierGroups").innerHTML,/● LIVE/);
+  vm.runInContext("toggleTierLiveOnly()",context);
+  assert.match(elements.get("tierGroups").innerHTML,/단솔/);
+  vm.runInContext("showTab('dash');showTab('tier')",context);
+  assert.equal(fetched.filter(u=>u.includes("dorang-live")).length,1);
+});
+
+test("LIVE 필터는 조회 중 상태와 실제 방송 없음 상태를 구분한다", async () => {
+  let finish;
+  const pending=new Promise(resolve=>{finish=resolve});
+  const fetchImpl=async url=>{
+    if(String(url).includes("dorang-live"))return pending;
+    return new Response(JSON.stringify({players:[],tierOrder:[]}),{status:200,headers:{"Content-Type":"application/json"}});
+  };
+  const {context,elements}=createContext({fetchImpl});
+  vm.runInContext(source,context);
+  vm.runInContext('tierPayload={version:"3.62",tiers:[{label:"8티어",players:[{name:"단솔",race:"P",soopId:"danso"}]}]};tierLiveOnly=true;renderTierTable()',context);
+  assert.match(elements.get("tierGroups").innerHTML,/LIVE 방송을 확인하는 중/);
+  vm.runInContext("showTab('tier')",context);
+  assert.match(elements.get("tierGroups").innerHTML,/LIVE 방송을 확인하는 중/);
+  finish(new Response(JSON.stringify({live:[],updatedAt:"2026-10-17T00:00:00Z"}),{status:200,headers:{"Content-Type":"application/json"}}));
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.match(elements.get("tierGroups").innerHTML,/맞는 LIVE 선수가 없어/);
 });

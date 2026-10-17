@@ -1,4 +1,4 @@
-const APP_VERSION = "1.7.8";
+const APP_VERSION = "1.7.9";
 const STORAGE_KEY = "spawnNote.records.v1";
 const PLAYER_KEY = "spawnNote.eloPlayer";
 const DASHBOARD_CACHE_KEY = "spawnNote.eloDashboard.v1";
@@ -28,6 +28,8 @@ let tierLoading = false;
 let tierLiveLoading = false;
 let tierError = "";
 let tierLiveStatus = "LIVE 확인 준비 중";
+let tierLiveLastAttemptAt = 0;
+let tierLiveLastSuccessAt = 0;
 let tierRace = "ALL";
 let tierLevels = new Set();
 let tierSearch = "";
@@ -253,7 +255,10 @@ function showTab(tab) {
   $("#dashTab").classList.toggle("active", tab === "dash");
   $("#logTab").classList.toggle("active", tab === "log");
   $("#tierTab").classList.toggle("active", tab === "tier");
-  if (tab === "tier" && !tierPayload && !tierLoading) loadTierTable();
+  if (tab === "tier") {
+    if (!tierPayload && !tierLoading) loadTierTable();
+    else ensureTierLiveRefresh();
+  }
 }
 
 function renderDash() {
@@ -626,13 +631,24 @@ function renderTierTable() {
     })
     .join("");
 
-  groupBox.innerHTML = groups || '<div class="empty tier-empty">조건에 맞는 선수가 없어</div>';
+  const emptyMessage = tierLiveOnly
+    ? tierLiveLoading || !tierLiveLastAttemptAt
+      ? "LIVE 방송을 확인하는 중이야…"
+      : !tierLiveLastSuccessAt || tierLiveStatus.startsWith("LIVE 연결 실패")
+        ? "LIVE 상태를 확인하지 못했어. ↻ 티어표·LIVE 갱신을 눌러 다시 시도해줘."
+        : "현재 선택한 조건에 맞는 LIVE 선수가 없어."
+    : "조건에 맞는 선수가 없어";
+  groupBox.innerHTML = groups || `<div class="empty tier-empty">${emptyMessage}</div>`;
   const refreshButton = $("#tierRefreshButton");
   if (refreshButton) refreshButton.disabled = tierLoading || tierLiveLoading;
 }
 
 async function fetchTierLive() {
+  if (tierLiveLoading) return;
   tierLiveLoading = true;
+  tierLiveLastAttemptAt = Date.now();
+  tierLiveStatus = "LIVE 확인 중…";
+  renderTierTable();
   try {
     const data = await fetchJson(`${LIVE_API_BASE}/?t=${Date.now()}`, { cache: "no-store" });
     const broadcasts = Array.isArray(data.live) ? data.live : [];
@@ -654,6 +670,7 @@ async function fetchTierLive() {
         .filter(([nickname, url]) => nickname && url),
     );
     const checked = new Date(data.updatedAt || Date.now());
+    tierLiveLastSuccessAt = Date.now();
     tierLiveStatus = `LIVE ${checked.toLocaleTimeString("ko-KR", {
       hour: "2-digit",
       minute: "2-digit",
@@ -663,6 +680,23 @@ async function fetchTierLive() {
     tierLiveStatus = "LIVE 연결 실패 · 티어표는 정상 표시 중";
   } finally {
     tierLiveLoading = false;
+    renderTierTable();
+  }
+}
+
+function ensureTierLiveRefresh() {
+  // A player master can arrive before the user opens the tier tab.
+  // LIVE status always gets its own initialization and 60-second refresh.
+  if (!tierRefreshTimer) {
+    tierRefreshTimer = setInterval(() => {
+      if (!$("#tier")?.classList.contains("hidden") && !tierLiveLoading) {
+        fetchTierLive().then(renderTierTable);
+      }
+    }, 60000);
+  }
+  const retryAfter = tierLiveLastSuccessAt ? 60000 : 15000;
+  if (!tierLiveLoading && (!tierLiveLastAttemptAt || Date.now() - tierLiveLastAttemptAt >= retryAfter)) {
+    fetchTierLive().then(renderTierTable);
   }
 }
 
@@ -683,11 +717,7 @@ async function loadTierTable(force = false) {
     if (tierResult.status === "rejected") throw tierResult.reason;
     tierPayload = tierResult.value;
     writeTierCache(tierPayload);
-    if (!tierRefreshTimer) {
-      tierRefreshTimer = setInterval(() => {
-        if (!$("#tier")?.classList.contains("hidden")) fetchTierLive().then(renderTierTable);
-      }, 60000);
-    }
+    ensureTierLiveRefresh();
   } catch (error) {
     tierError = tierPayload
       ? `${error.message} 저장된 티어표를 대신 표시하고 있어.`
@@ -718,6 +748,7 @@ function setTierSearch(value) {
 
 function toggleTierLiveOnly() {
   tierLiveOnly = !tierLiveOnly;
+  if (tierLiveOnly) ensureTierLiveRefresh();
   renderTierTable();
 }
 
@@ -1309,11 +1340,7 @@ loadTierTable = async function (force = false) {
       if (cached) tierPayload = cached;
       else return legacyLoadTierTable(force);
     }
-    if (!tierRefreshTimer) {
-      tierRefreshTimer = setInterval(() => {
-        if (!$("#tier")?.classList.contains("hidden")) fetchTierLive().then(renderTierTable);
-      }, 60000);
-    }
+    ensureTierLiveRefresh();
   } finally {
     tierLoading = false;
     renderTierTable();
