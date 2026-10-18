@@ -129,8 +129,9 @@ test("대시보드 통계는 ELOBOARD 전체 공식전을 기간·상대 종족�
     ],
     "2026-09-12",
   );
-  assert.deepEqual(result.overall, { wins: 204, losses: 185, games: 389, winRate: 52.4 });
-  assert.equal(result.totalGames, 389);
+  assert.deepEqual(result.overall, { wins: 2, losses: 1, games: 3, winRate: 66.7 });
+  assert.equal(result.totalGames, 3);
+  assert.equal(result.player.games, 389);
   assert.deepEqual(result.month, { wins: 1, losses: 1, games: 2, winRate: 50 });
   assert.deepEqual(result.week, { wins: 1, losses: 1, games: 2, winRate: 50 });
   assert.deepEqual(

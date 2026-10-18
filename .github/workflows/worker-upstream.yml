@@ -1,0 +1,22 @@
+name: Canonical Worker parity
+on:
+  push:
+    branches: [main]
+    paths: ['worker/**', '.github/workflows/worker-upstream.yml']
+  pull_request:
+    paths: ['worker/**', '.github/workflows/worker-upstream.yml']
+  schedule:
+    - cron: '17 8 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm run check:upstream && npm test
+        working-directory: worker

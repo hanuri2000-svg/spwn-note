@@ -1,11 +1,15 @@
 {
   "name": "spawn-note-elo-relay",
-  "version": "1.4.0",
+  "version": "1.5.4",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "test": "node --test ../tests/worker-parser.test.mjs tests/*.test.mjs",
+    "predeploy": "npm run check:upstream && npm test",
+    "sync:upstream": "node scripts/sync-upstream.mjs --write",
+    "check:upstream": "node scripts/sync-upstream.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"

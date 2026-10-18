@@ -42,18 +42,25 @@ Windows 실행파일의 스폰일지 기능을 모바일과 PC 브라우저에�
 
 ## ELOBOARD 자동 조회
 
-GitHub Pages는 정적 사이트라 ELOBOARD를 직접 중계할 수 없습니다. `worker` 폴더의 Cloudflare Worker를 배포한 뒤 생성된 주소를 `config.js`에 넣어야 합니다.
+중계 Worker의 **기준 소스는 [spawn-note-elo-relay](https://github.com/hanuri2000-svg/spawn-note-elo-relay)** 입니다. 이 저장소의 `worker/src/index.js`, `worker/tests/dashboard.test.mjs`, `worker/wrangler.jsonc`는 동기화 사본이므로 직접 수정하지 않습니다. 기존 `config.js`의 운영 주소는 유지합니다.
 
-```js
-window.SPAWN_NOTE_ELO_API_BASE = "https://spawn-note-elo-relay.example.workers.dev";
+기준 저장소에서 기능 수정·검사·커밋 후 이 저장소에서 실행합니다:
+
+```bash
+cd worker
+npm run sync:upstream
+npm test
+# 변경된 Worker, 검사, upstream-lock.json을 함께 커밋
 ```
 
-Worker 배포 명령:
+배포는 기준 저장소의 `npm run deploy`를 권장합니다. 이 저장소에서 배포해야 하면:
 
 ```bash
 cd worker
 npm install
 npm run deploy
 ```
+
+배포 전 기준 저장소 최신 소스·회귀검사·설정과의 일치 여부를 검사하며, 네트워크 오류나 불일치가 있으면 배포를 중단합니다. `npx wrangler deploy`로 검사를 우회하지 마세요. Cloudflare 자동 빌드는 기준 저장소 한 곳만 연결하고 테스트가 포함된 `npm run deploy`를 사용합니다. `upstream-lock.json`은 가져온 커밋과 파일 해시를 기록합니다. 일일 CI는 기준 소스와의 차이를 검사합니다.
 
 중계 서버는 현재 ELOBOARD의 공개 JSON 조회 주소를 사용하며 여자부 주종 계정을 우선합니다. 전적 가져오기는 스폰 경기만 조회하고, 대시보드 요약과 상대전적은 팀리그·개인리그를 포함한 ELOBOARD 전체 공식전을 표시합니다. ELOBOARD가 접속 초과 또는 자동 접근 제한 상태이면 웹앱에서도 해당 오류를 안내합니다.
