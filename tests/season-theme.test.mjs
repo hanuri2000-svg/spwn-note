@@ -50,7 +50,7 @@ function simulate(initialMonth, embedded=false) {
   return {root,children,heading,timers,listeners,styles,setMonth(value){month=value},document};
 }
 test("1–12월 전체가 독립된 색상과 계절 장식을 가진다",()=>{
-  assert.equal(version,"1.7.10");
+  assert.equal(version,"1.7.11");
   assert.equal(Object.keys(palette).length,12);
   for(let month=1;month<=12;month++){
     const x=palette[String(month)];
@@ -115,3 +115,4 @@ test("버전과 서비스워커 캐시가 계절 파일까지 일치한다",()=>
   assert.ok(worker.includes('"./season-theme.js"'));
   new vm.Script(script);
 });
+

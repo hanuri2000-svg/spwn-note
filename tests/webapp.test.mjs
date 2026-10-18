@@ -146,7 +146,7 @@ test("공용 이름과 화면 버전을 표시한다", () => {
   const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
   const manifest = fs.readFileSync(new URL("../manifest.webmanifest", import.meta.url), "utf8");
   assert.match(html, />스폰노트 /);
-  assert.match(html, />v1\.7\.10</);
+  assert.match(html, />v1\.7\.11</);
   assert.match(html, /등록된 이름의 ELOBOARD 전체 공식전을 기준으로\s*집계·표시됩니다\./);
   assert.match(html, /id="basePlayer"/);
   assert.match(html, /id="tierTab"/);
@@ -166,7 +166,7 @@ test("NEW CATSLE 배경은 독립 화면에만 표시한다", () => {
   assert.match(html, /documentElement\.classList\.add\("embed-mode"\)/);
   assert.match(html, /\.\/assets\/brand-watermark\.png/);
   assert.match(html, /opacity: 0\.12/);
-  assert.match(serviceWorker, /spawn-note-v1\.7\.10/);
+  assert.match(serviceWorker, /spawn-note-v1\.7\.11/);
   assert.match(serviceWorker, /\.\/assets\/brand-watermark\.png/);
 });
 
@@ -461,3 +461,4 @@ test("LIVE 필터는 조회 중 상태와 실제 방송 없음 상태를 구분�
   await new Promise(resolve=>setImmediate(resolve));
   assert.match(elements.get("tierGroups").innerHTML,/맞는 LIVE 선수가 없어/);
 });
+
