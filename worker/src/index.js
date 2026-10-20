@@ -245,8 +245,11 @@ async function requestEloJson(path, params = {}, attempts = 2) {
   }
   let lastError;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
     try {
       const response = await fetch(url, {
+        signal: controller.signal,
         headers: {
           "User-Agent": "Mozilla/5.0 (compatible; SpawnNote/1.3; +https://hanuri2000-svg.github.io/spwn-note/)",
           Accept: "application/json",
@@ -262,9 +265,11 @@ async function requestEloJson(path, params = {}, attempts = 2) {
       if (!response.ok) throw new Error(`ELOBOARD 응답 오류가 발생했어. (${response.status})`);
       return JSON.parse(body);
     } catch (error) {
-      lastError = error;
+      lastError = controller.signal.aborted
+        ? new ResponseError(504, "ELOBOARD 응답이 지연되고 있어. 잠시 후 다시 확인해줘.")
+        : error;
       if (attempt < attempts) await new Promise((resolve) => setTimeout(resolve, 350 * attempt));
-    }
+    } finally { clearTimeout(timer); }
   }
   throw lastError || new Error("ELOBOARD 데이터를 불러오지 못했어.");
 }
@@ -393,6 +398,12 @@ async function eloDashboard(url) {
   return buildDashboardSummary(profile, raceRows, matches, dateKey);
 }
 
+// The home screen only needs the current score, not thousands of match rows.
+async function eloProfile(url) {
+  const player = validatePlayerName(url.searchParams.get("player"), "등록할 선수");
+  return { player: profileSummary(await resolveProfile(player)) };
+}
+
 function buildTierPayload(data) {
   if (!Array.isArray(data?.tiers)) {
     throw new ResponseError(502, "ELOBOARD 티어표 형식을 확인하지 못했어.");
@@ -446,8 +457,9 @@ export default {
     const origin = env.ALLOWED_ORIGIN || "*";
     if (request.method === "OPTIONS") return json({ ok: true }, 200, origin);
     if (request.method !== "GET") return json({ error: "method not allowed" }, 405, origin);
-    if (url.pathname === "/health") return json({ ok: true, version: "1.5.4" }, 200, origin);
+    if (url.pathname === "/health") return json({ ok: true, version: "1.5.5" }, 200, origin);
     try {
+      if (url.pathname === "/api/elo/profile") return json(await eloProfile(url), 200, origin);
       if (url.pathname === "/api/elo/preview") return json(await eloPreview(url), 200, origin);
       if (url.pathname === "/api/elo/rival") return json(await eloRival(url), 200, origin);
       if (url.pathname === "/api/elo/dashboard") return json(await eloDashboard(url), 200, origin);

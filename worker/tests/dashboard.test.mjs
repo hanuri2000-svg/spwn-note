@@ -12,6 +12,34 @@ const rows = [
   game(3, '2026-10-18', 2, 'P', 'win', 'solo_event', ''),
 ];
 
+test('lightweight score route only fetches a player and never waits for match history', async t => {
+ const calls=[];
+ t.mock.method(globalThis,'fetch',async input=>{
+  const url=new URL(input);calls.push(url.pathname);
+  assert.equal(url.pathname,'/api/players');return Response.json([{...profile,elo_raw:1289.4}]);
+ });
+ const env={ALLOWED_ORIGIN:'https://hanuri2000-svg.github.io'};
+ const response=await worker.fetch(new Request('https://relay.test/api/elo/profile?player=기준'),env);
+ assert.equal(response.status,200);assert.equal(response.headers.get('Access-Control-Allow-Origin'),env.ALLOWED_ORIGIN);
+ const data=await response.json();assert.equal(data.player.elo,'1289.4');assert.equal(data.player.name,'기준');assert.equal(data.overall,undefined);
+ assert.deepEqual(calls,['/api/players']);
+ assert.equal((await worker.fetch(new Request('https://relay.test/api/elo/profile'),env)).status,400);
+ const health=await (await worker.fetch(new Request('https://relay.test/health'),env)).json();assert.equal(health.version,'1.5.5');
+});
+
+test('upstream stalls abort both attempts and return a recoverable gateway timeout', async t => {
+ t.mock.timers.enable({apis:['setTimeout']});
+ const signals=[];
+ t.mock.method(globalThis,'fetch',(_input,{signal})=>{
+  signals.push(signal);return new Promise((_resolve,reject)=>signal.addEventListener('abort',()=>reject(new Error('aborted'))));
+ });
+ const pending=worker.fetch(new Request('https://relay.test/api/elo/profile?player=기준'),{});
+ t.mock.timers.tick(8000);await Promise.resolve();await Promise.resolve();
+ t.mock.timers.tick(350);await Promise.resolve();await Promise.resolve();
+ t.mock.timers.tick(8000);
+ const response=await pending;assert.equal(response.status,504);assert.equal(signals.length,2);assert.ok(signals.every(signal=>signal.aborted));
+});
+
 test('all official categories, maps, race fallback, periods and overall totals share one complete match set', () => {
   const result = __test.buildDashboardSummary(profile, [{ race: 'T', wins: 10, losses: 5, games: 15, win_rate: 66.7 }], rows, '2026-10-18');
   assert.deepEqual(result.overall, { wins: 2, losses: 1, games: 3, winRate: 66.7 });

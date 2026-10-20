@@ -1,9 +1,9 @@
 {
   "repository": "hanuri2000-svg/spawn-note-elo-relay",
-  "revision": "5b8e6fb5ab3357c3fa9a045d155b8f11d30747dd",
+  "revision": "1e3ff1bfbdb46740911b22b439bf5233e494c4fd",
   "hashes": {
-    "src/index.js": "247b0eb81afb13007af8464388d0f6fdff635b326db2358f21c6cc39aaf040b3",
-    "tests/dashboard.test.mjs": "e92b6f69f5495c44b784d9f29890f7ce2ca12df8b73491b0b215ccc8723f94d3",
+    "src/index.js": "a803112bfefb69b760e0cc5a872b9830f282506d3ee4fcafc35bc9012d05791e",
+    "tests/dashboard.test.mjs": "70f449d78a0493a1a795c546740391df64036a67dd83f56ba6fa226215f5758f",
     "wrangler.jsonc": "f68eec3b02cbe9d3539df34673b7c9b35d6f6bf7a024cce2d1c24f504fdcc23f"
   }
 }
