@@ -1,5 +1,5 @@
 {
-  "version": "1.8.0",
-  "releasedAt": "2026-11-09T12:00:00.000Z",
-  "message": "ELOBOARD 연동 제거 및 스폰일지 저장 기록 기준 대시보드 전환"
+  "version": "1.8.1",
+  "releasedAt": "2026-11-09T15:00:00.000Z",
+  "message": "티어표 메뉴와 SOOP LIVE 기능 제거"
 }
