@@ -1,30 +1,9 @@
-const APP_VERSION = "1.8.0";
+const APP_VERSION = "1.8.1";
 const STORAGE_KEY = "spawnNote.records.v1";
-const TIER_CACHE_KEY = "spawnNote.tierTable.v2";
 const LEGACY_STORAGE_KEY = "new" + "catsleSpawnNote.records.v1";
-const LIVE_API_BASE = "https://dorang-live.hajimayo8130.workers.dev";
 const PLAYER_MASTER_URL = "https://hanuri2000-svg.github.io/star-match-manager/players.json";
-const TIER_LIVE_NAME_ALIASES = {
-  낭니: ["냥니"],
-  빵체리: ["땡세리"],
-  럭키위키: ["럭키워키"],
-};
 
 let records = [];
-let tierPayload = null;
-let tierLive = {};
-let tierLiveByName = {};
-let tierLoading = false;
-let tierLiveLoading = false;
-let tierError = "";
-let tierLiveStatus = "LIVE 확인 준비 중";
-let tierLiveLastAttemptAt = 0;
-let tierLiveLastSuccessAt = 0;
-let tierRace = "ALL";
-let tierLevels = new Set();
-let tierSearch = "";
-let tierLiveOnly = false;
-let tierRefreshTimer = null;
 let masterPlayerDirectory = {};
 
 const $ = (selector) => document.querySelector(selector);
@@ -313,11 +292,8 @@ function renderAll() {
 function showTab(tab) {
   $("#dash").classList.toggle("hidden", tab !== "dash");
   $("#log").classList.toggle("hidden", tab !== "log");
-  $("#tier").classList.toggle("hidden", tab !== "tier");
   $("#dashTab").classList.toggle("active", tab === "dash");
   $("#logTab").classList.toggle("active", tab === "log");
-  $("#tierTab").classList.toggle("active", tab === "tier");
-  if (tab === "tier") loadTierTable(false);
 }
 
 function renderTable() {
@@ -383,7 +359,6 @@ function openForm() {
   form.date.value = localDateKey();
   $("#formTitle").textContent = "기록 추가";
   dlg.showModal();
-  if (!tierPayload && !tierLoading) loadTierTable(false);
 }
 
 function editRec(id) {
@@ -467,160 +442,6 @@ function resetAllRecords() {
   alert("스폰일지 기록을 모두 리셋했어");
 }
 
-function readTierCache() {
-  try {
-    const cached = JSON.parse(localStorage.getItem(TIER_CACHE_KEY) || "null");
-    return Array.isArray(cached?.tiers) ? cached : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeTierCache(data) {
-  try {
-    localStorage.setItem(TIER_CACHE_KEY, JSON.stringify(data));
-  } catch (error) {
-    console.warn("티어표 임시 저장에 실패했어.", error);
-  }
-}
-
-function normalizeTierLiveName(value) {
-  return String(value || "").normalize("NFKC").toLowerCase().replace(/[^0-9a-z가-힣]/g, "");
-}
-
-function tierPlayerLiveUrl(player) {
-  const soopId = String(player.soopId || "").toLowerCase();
-  if (soopId && tierLive[soopId]) return tierLive[soopId];
-  const names = [player.name, ...(TIER_LIVE_NAME_ALIASES[player.name] || [])]
-    .map(normalizeTierLiveName)
-    .filter(Boolean);
-  for (const name of names) {
-    if (tierLiveByName[name]) return tierLiveByName[name];
-  }
-  const matches = Object.entries(tierLiveByName).filter(([nickname]) =>
-    names.some((name) => nickname.startsWith(name)),
-  );
-  return matches.length === 1 ? matches[0][1] : "";
-}
-
-function tierPlayerCard(player) {
-  const liveUrl = tierPlayerLiveUrl(player);
-  const channelUrl = player.soopId ? `https://ch.sooplive.co.kr/${encodeURIComponent(player.soopId)}` : "";
-  const targetUrl = liveUrl || channelUrl;
-  const avatar = `<span class="tier-avatar-fallback" style="display:grid">${esc(String(player.name || "?").slice(0, 1))}</span>`;
-  const avatarNode = targetUrl
-    ? `<a class="tier-avatar-link" href="${esc(targetUrl)}" target="_blank" rel="noopener noreferrer" title="${liveUrl ? "현재 SOOP 방송 보기" : "SOOP 방송국 보기"}">${avatar}</a>`
-    : `<span class="tier-avatar-link" title="${esc(player.name)}">${avatar}</span>`;
-  const nameNode = targetUrl
-    ? `<a class="tier-player-name" href="${esc(targetUrl)}" target="_blank" rel="noopener noreferrer">${esc(player.name)}</a>`
-    : `<span class="tier-player-name">${esc(player.name)}</span>`;
-  return `<div class="tier-player race-${esc(player.race)} ${liveUrl ? "is-live" : ""}">${avatarNode}<span class="tier-player-identity"><b class="tier-race">${esc(player.race)}</b>${nameNode}</span>${liveUrl ? `<a class="tier-live" href="${esc(liveUrl)}" target="_blank" rel="noopener noreferrer">● LIVE</a>` : ""}</div>`;
-}
-
-function renderTierTable() {
-  const status = $("#tierStatus");
-  const filterBox = $("#tierLevelFilters");
-  const groupBox = $("#tierGroups");
-  if (!status || !filterBox || !groupBox) return;
-  const tiers = Array.isArray(tierPayload?.tiers) ? tierPayload.tiers : [];
-  status.textContent = tierLoading
-    ? "승인된 선수 DB에서 티어표를 불러오고 있어…"
-    : tierError ||
-      (tierPayload
-        ? `선수 DB v${tierPayload.version || "-"} · ${tierPayload.updatedOn || "기준일 미상"} 기준 · ${tierLiveStatus}`
-        : "티어표를 열면 승인된 선수 DB를 확인해.");
-  filterBox.innerHTML = tiers.length
-    ? `<button class="${tierLevels.size ? "" : "active"}" onclick="toggleTierLevel('ALL')">전체</button>${tiers
-        .map(
-          (tier) =>
-            `<button class="${tierLevels.has(tier.label) ? "active" : ""}" onclick="toggleTierLevel('${esc(tier.label)}')">${tierLevels.has(tier.label) ? "✓ " : ""}${esc(tier.label)}</button>`,
-        )
-        .join("")}`
-    : "";
-  document.querySelectorAll("[data-tier-race]").forEach((button) =>
-    button.classList.toggle("active", button.dataset.tierRace === tierRace),
-  );
-  $("#tierLiveOnly")?.classList.toggle("active", tierLiveOnly);
-  if ($("#tierLiveOnly")) {
-    $("#tierLiveOnly").textContent = tierLiveOnly ? "✓ LIVE만" : "○ LIVE만";
-    $("#tierLiveOnly").setAttribute("aria-pressed", String(tierLiveOnly));
-  }
-  const query = tierSearch.trim().toLowerCase();
-  const groups = tiers
-    .filter((tier) => !tierLevels.size || tierLevels.has(tier.label))
-    .map((tier) => {
-      const players = (tier.players || []).filter((player) => {
-        const live = tierPlayerLiveUrl(player);
-        return (
-          (tierRace === "ALL" || player.race === tierRace) &&
-          (!query || String(player.name || "").toLowerCase().includes(query)) &&
-          (!tierLiveOnly || live)
-        );
-      });
-      if (!players.length) return "";
-      return `<section class="tier-group"><header><h3>${esc(tier.label)}</h3><span>${players.length}명</span></header><div class="tier-players">${players.map(tierPlayerCard).join("")}</div></section>`;
-    })
-    .join("");
-  const emptyMessage = tierLiveOnly
-    ? tierLiveLoading || !tierLiveLastAttemptAt
-      ? "LIVE 방송을 확인하는 중이야…"
-      : !tierLiveLastSuccessAt || tierLiveStatus.startsWith("LIVE 연결 실패")
-        ? "LIVE 상태를 확인하지 못했어. 갱신 버튼으로 다시 시도해줘."
-        : "현재 선택한 조건에 맞는 LIVE 선수가 없어."
-    : "조건에 맞는 선수가 없어";
-  groupBox.innerHTML = groups || `<div class="empty tier-empty">${emptyMessage}</div>`;
-  const refreshButton = $("#tierRefreshButton");
-  if (refreshButton) refreshButton.disabled = tierLoading || tierLiveLoading;
-}
-
-async function fetchTierLive() {
-  if (tierLiveLoading) return;
-  tierLiveLoading = true;
-  tierLiveLastAttemptAt = Date.now();
-  tierLiveStatus = "LIVE 확인 중…";
-  renderTierTable();
-  try {
-    const data = await fetchJson(`${LIVE_API_BASE}/?t=${Date.now()}`, { cache: "no-store" });
-    const broadcasts = Array.isArray(data.live) ? data.live : [];
-    tierLive = Object.fromEntries(
-      broadcasts
-        .filter((broadcast) => broadcast.soop_id)
-        .map((broadcast) => [
-          String(broadcast.soop_id).toLowerCase(),
-          broadcast.url || `https://ch.sooplive.co.kr/${broadcast.soop_id}`,
-        ]),
-    );
-    tierLiveByName = Object.fromEntries(
-      broadcasts
-        .map((broadcast) => [
-          normalizeTierLiveName(broadcast.nick || broadcast.nickname),
-          broadcast.url || (broadcast.soop_id ? `https://ch.sooplive.co.kr/${broadcast.soop_id}` : ""),
-        ])
-        .filter(([nickname, url]) => nickname && url),
-    );
-    const checked = new Date(data.updatedAt || Date.now());
-    tierLiveLastSuccessAt = Date.now();
-    tierLiveStatus = `LIVE ${checked.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })} 확인 · 60초 자동 갱신`;
-  } catch {
-    tierLiveStatus = "LIVE 연결 실패 · 티어표는 정상 표시 중";
-  } finally {
-    tierLiveLoading = false;
-    renderTierTable();
-  }
-}
-
-function ensureTierLiveRefresh() {
-  if (!tierRefreshTimer) {
-    tierRefreshTimer = setInterval(() => {
-      if (!$("#tier")?.classList.contains("hidden") && !tierLiveLoading) fetchTierLive();
-    }, 60000);
-  }
-  const retryAfter = tierLiveLastSuccessAt ? 60000 : 15000;
-  if (!tierLiveLoading && (!tierLiveLastAttemptAt || Date.now() - tierLiveLastAttemptAt >= retryAfter)) {
-    fetchTierLive();
-  }
-}
-
 async function loadSharedPlayerMaster(force = false) {
   const response = await fetch(`${PLAYER_MASTER_URL}${force ? `?t=${Date.now()}` : ""}`, {
     cache: "no-store",
@@ -639,26 +460,6 @@ async function loadSharedPlayerMaster(force = false) {
     });
   });
   masterPlayerDirectory = directory;
-  const order = Array.isArray(payload.tierOrder) ? payload.tierOrder : [];
-  const groups = new Map();
-  players.forEach((player) => {
-    const label = player.tierLabel || (player.tier === "유스" ? "베이비" : player.tier || "미지정");
-    if (!groups.has(label)) groups.set(label, []);
-    groups.get(label).push({
-      name: player.name,
-      race: player.race || "",
-      soopId: player.soopId || "",
-    });
-  });
-  const labels = [...order.map((value) => (value === "유스" ? "베이비" : value)), ...groups.keys()].filter(
-    (value, index, list) => list.indexOf(value) === index && groups.has(value),
-  );
-  tierPayload = {
-    version: payload.source?.version || "master",
-    updatedOn: payload.source?.date || payload.updatedAt || "",
-    tiers: labels.map((label) => ({ label, players: groups.get(label) })),
-  };
-  writeTierCache(tierPayload);
   let list = document.getElementById("masterPlayerNames");
   if (!list) {
     list = document.createElement("datalist");
@@ -673,62 +474,12 @@ async function loadSharedPlayerMaster(force = false) {
   return payload;
 }
 
-async function loadTierTable(force = false) {
-  if (tierLoading) return;
-  if (!tierPayload) tierPayload = readTierCache();
-  tierLoading = true;
-  tierError = "";
-  renderTierTable();
-  try {
-    const [masterResult] = await Promise.allSettled([loadSharedPlayerMaster(force), fetchTierLive()]);
-    if (masterResult.status === "rejected") throw masterResult.reason;
-    ensureTierLiveRefresh();
-  } catch (error) {
-    tierError = tierPayload
-      ? `${error.message} 저장된 티어표를 대신 표시하고 있어.`
-      : error.message;
-  } finally {
-    tierLoading = false;
-    renderTierTable();
-    autoFillRecordPlayer(form?.elements?.opponent);
-  }
-}
-
-function toggleTierLevel(level) {
-  if (level === "ALL") tierLevels.clear();
-  else if (tierLevels.has(level)) tierLevels.delete(level);
-  else tierLevels.add(level);
-  renderTierTable();
-}
-
-function setTierRace(race) {
-  tierRace = race;
-  renderTierTable();
-}
-
-function setTierSearch(value) {
-  tierSearch = value;
-  renderTierTable();
-}
-
-function toggleTierLiveOnly() {
-  tierLiveOnly = !tierLiveOnly;
-  if (tierLiveOnly) ensureTierLiveRefresh();
-  renderTierTable();
-}
-
 function load() {
   records = readRecords();
-  if (new URLSearchParams(location.search).get("embed") === "1") {
-    $("#tierTab")?.classList.add("hidden");
-  }
   renderAll();
   loadSharedPlayerMaster(false)
-    .then(() => renderTierTable())
-    .catch(() => {
-      tierPayload = readTierCache();
-      renderTierTable();
-    });
+    .then(() => autoFillRecordPlayer(form?.elements?.opponent))
+    .catch((error) => console.warn("공용 선수 DB 연결 실패", error));
 }
 
 if ("serviceWorker" in navigator) {
