@@ -1,5 +1,5 @@
 'use strict';
-const APP_VERSION='2.1.2';
+const APP_VERSION='2.1.3';
 const KEY='my-starlog-spwn-note-v1', DRAFT='my-starlog-spwn-note-draft';
 const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
@@ -32,7 +32,7 @@ function drawSettings(){$('#settings').innerHTML=heading('나의 공간 설정 �
 function render(){const version=document.querySelector('.sidebar-bottom span');if(version)version.textContent='v'+APP_VERSION;const hash=location.hash.slice(1);page=['records','stats','review','settings'].includes(hash)?hash:'stats';document.querySelectorAll('.page').forEach(el=>el.classList.toggle('active',el.id===page));document.querySelectorAll('#nav a').forEach(el=>el.classList.toggle('active',el.hash==='#'+page));const names={records:'경기 기록',stats:'나의 통계',review:'복기 노트',settings:'설정 · 백업'};$('#breadcrumb').innerHTML=`나의 작은 기록 공간 <span> / ${names[page]}</span>`;$('#profileName').textContent=db.settings.name||'나의 스타로그';const registeredName=db.settings.name.trim();$('#nameGuide').hidden=Boolean(registeredName);$('#nameGreeting').hidden=!registeredName;$('#nameGreeting').textContent=registeredName?'🌷 '+registeredName+'님, 반가워요! 오늘의 스타 이야기도 함께 기록해요.':'';({records:drawRecords,stats:drawStats,review:drawReview,settings:drawSettings})[page]();showMigrationNotice();for(const [id,items] of [['opponents',db.matches.map(m=>m.opponent)],['maps',[...db.settings.maps,...db.matches.map(m=>m.map)]],['builds',[...db.settings.builds,...db.matches.map(m=>m.build)]]])$('#'+id).innerHTML=[...new Set(items)].filter(Boolean).map(s=>`<option value="${esc(s)}"></option>`).join('')}
 const form=$('#matchForm');
 function fillForm(m){for(const [k,v] of Object.entries(m)){const el=form.elements.namedItem(k);if(!el)continue;if(k==='star')el.checked=!!v;else el.value=v??''}}
-function formData(){const f=new FormData(form),v=Object.fromEntries(f.entries());v.star=f.has('star');return v}
+function formData(){const f=new FormData(form),v=Object.fromEntries(f.entries());v.star=f.has('star');const existing=db.matches.find(m=>m.id===v.id);v.myRace=existing?existing.myRace:db.settings.race;return v}
 function saveDraft(){try{localStorage.setItem(DRAFT,JSON.stringify(formData()))}catch(e){}}
 function openForm(id){form.reset();fillForm({id:'',date:today(),myRace:db.settings.race});if(id){const m=db.matches.find(x=>x.id===id);if(!m)return;fillForm(m)}else{try{const draft=JSON.parse(localStorage.getItem(DRAFT)||'null');if(draft&&!draft.id)fillForm(draft)}catch(e){}}$('#formTitle').textContent=id?'한 판의 기록 다듬기 ✨':'오늘의 한 판 기록하기 ✨';$('#editor').showModal()}
 function closeForm(){saveDraft();$('#editor').close()}
