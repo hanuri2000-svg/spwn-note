@@ -1,5 +1,5 @@
 'use strict';
-const APP_VERSION='2.2.1';
+const APP_VERSION='2.2.2';
 const KEY='my-starlog-spwn-note-v1', DRAFT='my-starlog-spwn-note-draft';
 const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
@@ -14,7 +14,7 @@ const sorted=()=>[...db.matches].sort((a,b)=>b.date.localeCompare(a.date)||(b.cr
 const info=rows=>{const w=rows.filter(m=>m.result==='W').length;return {n:rows.length,w,l:rows.length-w,rate:rows.length?Math.round(w/rows.length*100):0}};
 const typeOptions=['스폰','래더','연습','CK','기타'],raceNames={P:'프로토스',T:'테란',Z:'저그',R:'랜덤 / 모름'};
 function toast(s){$('#toast').textContent=s;$('#toast').classList.add('show');clearTimeout(window.toastTimer);window.toastTimer=setTimeout(()=>$('#toast').classList.remove('show'),3500)}
-function empty(icon,title,desc,button=true){return `<div class="empty"><span class="empty-icon">${icon}</span><b>${title}</b><p>${desc}</p>${button?'<button class="btn primary" onclick="openForm()">＋ 첫 경기 기록하기</button>':''}</div>`}
+function empty(icon,title,desc){return `<div class="empty"><span class="empty-icon">${icon}</span><b>${title}</b><p>${desc}</p></div>`}
 function metric(title,value,sub,icon){return `<div class="metric"><span class="metric-icon">${icon}</span><div class="metric-title">${title}</div><strong>${value}</strong><small>${sub}</small></div>`}
 function heading(title,desc){return `<div class="page-heading"><div><span class="eyebrow">MY STARLOG</span><h1 class="page-title" style="margin-top:10px">${title}</h1><p class="subtext">${desc}</p></div><button class="btn primary" onclick="openForm()">＋ 경기 기록</button></div>`}
 function table(rows,compact=false){if(!rows.length)return empty('🪄','아직 기록된 경기가 없어요','첫 번째 한 판을 기록하고<br>나만의 스타 이야기를 시작해 보세요.');return `<div class="table-wrap"><table><thead><tr><th>날짜</th><th>상대</th><th>맵</th><th>결과</th>${compact?'':'<th>유형</th><th>내 빌드</th><th>다시 보기</th><th>관리</th>'}</tr></thead><tbody>${rows.map(m=>`<tr class="clickable"><td><button class="icon-btn" onclick="openForm('${m.id}')">${esc(m.date.slice(5).replace('-','.'))}</button></td><td><button class="icon-btn" onclick="openForm('${m.id}')"><span class="race ${m.race}">${m.race}</span>${esc(m.opponent)}</button></td><td>${esc(m.map)}</td><td><span class="badge ${m.result==='W'?'win':'loss'}">${m.result==='W'?'WIN':'LOSE'}</span></td>${compact?'':`<td>${esc(m.type)}</td><td>${esc(m.build||'—')}</td><td><button class="star-button ${m.star?'on':''}" onclick="toggleStar('${m.id}')" aria-label="다시 보기 ${m.star?'해제':'표시'}">${m.star?'♥':'♡'}</button></td><td><button class="icon-btn" onclick="openForm('${m.id}')">수정</button><button class="icon-btn danger" onclick="removeMatch('${m.id}')">삭제</button></td>`}</tr>`).join('')}</tbody></table></div>`}
