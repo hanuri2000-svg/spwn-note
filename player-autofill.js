@@ -6,6 +6,7 @@ const CACHE='starlog-player-directory-v1';
 const norm=value=>String(value||'').replace(/\s+/g,'').toLowerCase();
 let players=[],ready=false,failed=false;
 function matches(name){const key=norm(name);return key?players.filter(p=>[p.name,...(Array.isArray(p.aliases)?p.aliases:[])].some(n=>norm(n)===key)):[]}
+window.starlogPlayerTier=name=>{const found=matches(name);return found.length===1?String(found[0].tierLabel??found[0].tier??""):""};
 function install(){
  const form=document.getElementById('matchForm');if(!form)return;
  const input=form.elements.namedItem('opponent');if(!input)return;
