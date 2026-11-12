@@ -1,7 +1,7 @@
 // Only this app's exact assets are cached. Other GitHub Pages applications are untouched.
-const VERSION='2.0.0';
+const VERSION='2.0.1';
 const CACHE_NAME='my-starlog-spwn-'+encodeURIComponent(self.registration.scope)+'-'+VERSION;
-const ASSETS=['./','./index.html','./app.js?v='+VERSION,'./style.css?v='+VERSION,'./manifest.webmanifest'];
+const ASSETS=['./','./index.html','./app.js?v='+VERSION,'./style.css?v='+VERSION,'./manifest.webmanifest','./assets/newcatsle-logo.png'];
 const assetURLs=new Set(ASSETS.map(p=>new URL(p,self.registration.scope).href));
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE_NAME).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(self.clients.claim()));
