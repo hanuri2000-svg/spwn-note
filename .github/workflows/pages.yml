@@ -23,6 +23,11 @@ jobs:
     steps:
       - name: 소스 받기
         uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: 기록 이전 및 회귀 검사
+        run: node --test tests/*.test.mjs worker/tests/*.test.mjs
       - name: Pages 설정
         uses: actions/configure-pages@v5
       - name: 사이트 파일 묶기
@@ -32,4 +37,5 @@ jobs:
       - name: 배포
         id: deployment
         uses: actions/deploy-pages@v4
+
 

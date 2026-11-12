@@ -1,11 +1,11 @@
 {
-  "name": "스폰노트",
-  "short_name": "스폰노트",
-  "description": "스타크래프트 스폰 전적과 피드백을 기록하는 개인 웹앱",
+  "name": "마이 스타로그",
+  "short_name": "스타로그",
+  "description": "스폰·래더·연습·CK까지, 스타크래프트 경기 기록장",
   "lang": "ko",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#fff9fb",
-  "theme_color": "#5e3f5a"
+  "background_color": "#faf8fd",
+  "theme_color": "#eee6ff"
 }

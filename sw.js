@@ -1,58 +1,19 @@
-const CACHE_NAME = "spawn-note-v1.8.1";
-const APP_FILES = [
-  "./",
-  "./index.html",
-  "./ui.js",
-  "./season-theme.css",
-  "./season-theme.js",
-  "./manifest.webmanifest",
-  "./version.json",
-  "./assets/brand-watermark.png",
-];
-const APP_URLS = new Set(APP_FILES.map((path) => new URL(path, self.registration.scope).href));
-
-self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_FILES)).then(() => self.skipWaiting()),
-  );
-});
-
-self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches.keys()
-      .then((keys) => Promise.all(keys.filter((key) => key.startsWith("spawn-note-v") && key !== CACHE_NAME).map((key) => caches.delete(key))))
-      .then(() => self.clients.claim()),
-  );
-});
-
-self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET") return;
-  const url = new URL(event.request.url);
-  if (url.origin !== self.location.origin) return;
-  // Normalize only known application files and only the release query.
-  // Other query parameters may identify different resources.
-  url.searchParams.delete("v");
-  const appKey = APP_URLS.has(url.href) ? url.href : null;
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        if (response.ok) {
-          const copy = response.clone();
-          event.waitUntil(caches.open(CACHE_NAME)
-            .then((cache) => cache.put(appKey || event.request, copy)).catch(() => {}));
-        }
-        return response;
-      })
-      .catch(async () => {
-        // Never read obsolete application caches left behind by an update.
-        const cache = await caches.open(CACHE_NAME);
-        const cached = await cache.match(appKey || event.request);
-        if (cached) return cached;
-        if (event.request.mode === "navigate") {
-          const page = await cache.match(new URL("./index.html", self.registration.scope).href);
-          if (page) return page;
-        }
-        return Response.error();
-      }),
-  );
+// Only this app's exact assets are cached. Other GitHub Pages applications are untouched.
+const VERSION='2.0.0';
+const CACHE_NAME='my-starlog-spwn-'+encodeURIComponent(self.registration.scope)+'-'+VERSION;
+const ASSETS=['./','./index.html','./app.js?v='+VERSION,'./style.css?v='+VERSION,'./manifest.webmanifest'];
+const assetURLs=new Set(ASSETS.map(p=>new URL(p,self.registration.scope).href));
+self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE_NAME).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
+self.addEventListener('activate',event=>event.waitUntil(self.clients.claim()));
+self.addEventListener('fetch',event=>{
+ const url=new URL(event.request.url);
+ if(event.request.method!=='GET'||url.origin!==self.location.origin||!url.href.startsWith(self.registration.scope))return;
+ // Never return a cached version response as an update check.
+ if(url.pathname===new URL('./version.json',self.registration.scope).pathname)return;
+ const navigation=event.request.mode==='navigate';
+ if(!navigation&&!assetURLs.has(url.href))return;
+ event.respondWith(fetch(event.request).then(response=>{
+  if(response.ok)event.waitUntil(caches.open(CACHE_NAME).then(c=>c.put(navigation?new URL('./index.html',self.registration.scope).href:event.request,response.clone())).catch(()=>{}));
+  return response;
+ }).catch(async()=>{const c=await caches.open(CACHE_NAME);return await c.match(navigation?new URL('./index.html',self.registration.scope).href:event.request)||Response.error()}));
 });
