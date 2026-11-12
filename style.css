@@ -20,3 +20,5 @@ body{font-size:16px;line-height:1.65}.sidebar{width:260px;padding:30px 22px 22px
 .hero-art .orbit{border-color:#c6a7df55}
 @media(max-width:1100px){.hero-art{opacity:.9}}
 @media(max-width:800px){.hero-art{display:none}.brand-icon{width:40px;height:50px;flex-basis:40px}.brand small{font-size:10px}}
+
+#welcomeNotice{width:min(620px,calc(100vw - 32px));max-height:85vh;overflow:auto;padding:24px;border:1px solid #e4d5f1;border-radius:24px;background:#fffaff;color:#5f4a70}#welcomeNotice::backdrop{background:rgba(45,30,65,.35)}.notice-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px}.notice-heading h2{margin:0;font-size:22px}#welcomeNotice .tip{align-items:flex-start}
