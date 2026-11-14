@@ -1,5 +1,5 @@
 'use strict';
-const APP_VERSION='2.2.2';
+const APP_VERSION='2.2.3';
 const KEY='my-starlog-spwn-note-v1', DRAFT='my-starlog-spwn-note-draft';
 const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
@@ -169,5 +169,5 @@ if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.se
 function openProfile(){const p=$('#profileDialog');$('#profileInputName').value=db.settings.name;$('#profileInputRace').value=db.settings.race;p.oncancel=e=>{e.preventDefault();closeProfile()};if(!p.open)p.showModal()}
 function closeProfile(){window.profileDeferred=true;$('#profileDialog').close()}
 function saveProfile(event){event.preventDefault();const name=$('#profileInputName').value.trim(),race=$('#profileInputRace').value;if(!name){$('#profileInputName').setCustomValidity('이름을 입력해 주세요.');$('#profileInputName').reportValidity();return false}if(!['P','T','Z','R'].includes(race))return false;if(change(d=>{d.settings.name=name;d.settings.race=race})){closeProfile();render();toast('이름과 종족을 저장했어요 ✨')}return false}
-function promptProfile(){if(!db.settings.name.trim()&&!window.profileDeferred&&!document.querySelector('dialog[open]'))openProfile()}
+function promptProfile(){if(location.hash==='#tiers')return;if(!db.settings.name.trim()&&!window.profileDeferred&&!document.querySelector('dialog[open]'))openProfile()}
 function showTrash(){const p=$('#trashDialog');$('#trashItems').innerHTML=db.trash.length?db.trash.map(m=>'<div style="padding:12px">'+esc(m.date)+' · '+esc(m.opponent)+' <button class="btn small" onclick="recover(\''+m.id+'\');showTrash()">복구</button></div>').join(''):'휴지통이 비어 있어요.';if(!p.open)p.showModal()}
