@@ -1,5 +1,5 @@
 'use strict';
-const APP_VERSION='2.2.3';
+const APP_VERSION='2.2.4';
 const KEY='my-starlog-spwn-note-v1', DRAFT='my-starlog-spwn-note-draft';
 const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
@@ -103,6 +103,7 @@ async function checkForUpdate(){
  const button=document.getElementById('updateCheck');
  if(button.disabled)return;
  button.disabled=true;button.textContent='확인 중…';
+ let resultLabel='↻ 업데이트 확인';
  const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),10000);
  try{
   const response=await fetch('./version.json?check='+Date.now(),{cache:'no-store',signal:controller.signal});
@@ -110,14 +111,15 @@ async function checkForUpdate(){
   const latest=await response.json();
   if(!latest||typeof latest.version!=='string'||!/^\d+\.\d+\.\d+$/.test(latest.version))throw Error('invalid version');
   const comparison=compareVersion(latest.version,APP_VERSION);
-  if(comparison===0){toast('최신 버전이에요 · v'+APP_VERSION);return}
-  if(comparison<0){toast('배포가 반영 중이에요. 잠시 후 다시 확인해 주세요.');return}
+  if(comparison===0){resultLabel='✓ 최신 버전 v'+APP_VERSION;toast('최신 버전이에요 · v'+APP_VERSION);return}
+  if(comparison<0){resultLabel='↻ 배포 반영 중 · 다시 확인';toast('배포가 반영 중이에요. 잠시 후 다시 확인해 주세요.');return}
+  resultLabel='새 버전 v'+latest.version+' · 다시 확인';
   if(confirm(`새 버전 v${latest.version}이 있어요. 지금 불러올까요?\n저장된 경기 기록과 설정은 그대로 유지돼요.`)){
    if(document.getElementById('editor').open)saveDraft();
    const url=new URL(location.href);url.searchParams.set('app_update',latest.version+'-'+Date.now());location.replace(url.href);
   }
- }catch(e){toast('업데이트를 확인하지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.')}
- finally{clearTimeout(timeout);button.disabled=false;button.textContent='↻ 업데이트 확인'}
+ }catch(e){resultLabel='! 확인 실패 · 다시 시도';toast('업데이트를 확인하지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.')}
+ finally{clearTimeout(timeout);button.disabled=false;button.textContent=resultLabel}
 }
 function compareVersion(a,b){const aa=a.split('.').map(Number),bb=b.split('.').map(Number);for(let i=0;i<3;i++){if(aa[i]!==bb[i])return aa[i]>bb[i]?1:-1}return 0}
 
