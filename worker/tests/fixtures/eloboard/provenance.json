@@ -1,0 +1,34 @@
+{
+  "run": "https://github.com/hanuri2000-svg/star-match-manager/actions/runs/43843443022",
+  "fetchedAt": "2026-11-16T09:51:00.924Z",
+  "files": {
+    "summary.html.gz": {
+      "uncompressedSha256": "4516f32b497a90fd1af43ec30a07178aa63570de1d139a74c997a4149719feaf",
+      "uncompressedBytes": 127449
+    },
+    "maps.html.gz": {
+      "uncompressedSha256": "879182498c4f47fc29922cff875bfbf98c109248af85f175a1e7bde025b6ad7b",
+      "uncompressedBytes": 86687
+    },
+    "rival-513.html.gz": {
+      "uncompressedSha256": "538b9388fdc55e91f277cc319efebd6b671cb527289e012aac6563066329f18a",
+      "uncompressedBytes": 74330
+    },
+    "recent-1.html.gz": {
+      "uncompressedSha256": "71aa803d2f83df395aea2973696b8ad72361c9c9210d6ad0116d411558dc85e4",
+      "uncompressedBytes": 67149
+    },
+    "recent-2.html.gz": {
+      "uncompressedSha256": "1b2a2426f558dab506fb5ed3a5a3052b942954626e98e5cc43401af8fc6fc002",
+      "uncompressedBytes": 67556
+    },
+    "recent-3.html.gz": {
+      "uncompressedSha256": "8bc8c8f3ccb65762c5aee707a6d385a60b53fcb5b2322e3e43e9cb9bd930cd65",
+      "uncompressedBytes": 67379
+    },
+    "recent-4.html.gz": {
+      "uncompressedSha256": "184b91c4168ed4c048bcd1abaf40abdc0f7713a86309c2611daac9b396e7e296",
+      "uncompressedBytes": 67488
+    }
+  }
+}
