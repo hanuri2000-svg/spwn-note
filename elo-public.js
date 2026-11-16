@@ -1,4 +1,4 @@
-/* Public EloBoard views. This module never writes journal matches or settings. */
+/* Public statistics are views only; journal records and settings are never written. */
 (function (global, factory) {
   const api = factory(global);
   if (typeof module === 'object' && module.exports) module.exports = api;
@@ -8,7 +8,8 @@
   const API = 'https://spawn-note-elo-relay.hajimayo8130.workers.dev/api/elo/public';
   const DIRECTORY = 'https://hanuri2000-svg.github.io/star-match-manager/players.json';
   const PREFIX = 'starlog-public-elo:v1:';
-  const RACES = { P: '프로토스', T: '테란', Z: '저그', R: '랜덤' };
+  const RACES = { P: '프로토스', T: '테란', Z: '저그', R: '랜덤 / 모름' };
+  const TABS = [['opponent', '상대별'], ['map', '맵별'], ['race', '종족별'], ['build', '빌드별'], ['type', '유형별'], ['month', '월별']];
   const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const normalize = value => String(value || '').normalize('NFKC').replace(/\s+/g, '').toLowerCase();
   const idOK = value => Number.isSafeInteger(Number(value)) && Number(value) > 0;
@@ -16,19 +17,41 @@
   const statsOK = value => value && ['wins', 'losses', 'games', 'winRate'].every(k => numberOK(value[k])) && value.winRate <= 100 && value.wins + value.losses === value.games;
   const playerOK = (player, id) => player && Number(player.id) === Number(id) && typeof player.name === 'string' && player.name.trim().length > 0;
   const rowsOK = rows => Array.isArray(rows) && rows.every(statsOK);
+  const dateOK = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+  const monthOK = value => typeof value === 'string' && /^\d{4}-\d{2}$/.test(value);
   const formatNumber = value => Number(value).toLocaleString('ko-KR', { maximumFractionDigits: 1 });
   const rate = value => value.games ? formatNumber(value.winRate) + '%' : '—';
+  const kstDay = (timestamp = Date.now()) => new Date(Number(timestamp) + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
   function storageOf(options) {
     if ('storage' in options) return options.storage;
     try { return global.localStorage; } catch { return null; }
+  }
+  function readJSON(storage, key) {
+    try { return JSON.parse(storage?.getItem(key) || 'null'); } catch { return null; }
+  }
+  function writeJSON(storage, key, value) {
+    try { storage?.setItem(key, JSON.stringify(value)); } catch {}
+  }
+  function periodOK(period) {
+    return period && typeof period.complete === 'boolean' && (period.complete ? statsOK(period) :
+      ['wins', 'losses', 'games', 'winRate'].every(key => period[key] === null));
   }
   function validPayload(kind, data, playerId, opponentId) {
     if (!data || data.schemaVersion !== 1 || typeof data.fetchedAt !== 'string' || !Number.isFinite(Date.parse(data.fetchedAt))) return false;
     if (kind === 'recent') return Number(playerId) === 443 && Number(data.playerId) === 443 &&
       typeof data.complete === 'boolean' && Array.isArray(data.matches) && data.matches.length <= 50 &&
-      data.matches.every(m => m && idOK(m.id) && /^\d{4}-\d{2}-\d{2}$/.test(m.date) && typeof m.opponent === 'string' &&
+      data.matches.every(m => m && idOK(m.id) && dateOK(m.date) && typeof m.opponent === 'string' &&
         idOK(m.opponentId) && Number(m.opponentId) !== 443 && ['W', 'L'].includes(m.result)) &&
       new Set(data.matches.map(m => String(m.id))).size === data.matches.length;
+    if (kind === 'activity') return Number(data.playerId) === Number(playerId) && dateOK(data.asOfDate) &&
+      data.asOfDate === kstDay(Date.parse(data.fetchedAt)) &&
+      data.coverage && typeof data.coverage.complete === 'boolean' && typeof data.coverage.allMatches === 'boolean' &&
+      periodOK(data.today) && data.today.date === data.asOfDate &&
+      periodOK(data.currentMonth) && data.currentMonth.month === data.asOfDate.slice(0, 7) &&
+      data.streak && ['W', 'L', null].includes(data.streak.result) && Number.isSafeInteger(data.streak.count) && data.streak.count >= 0 &&
+      typeof data.streak.complete === 'boolean' && (data.streak.result !== null || data.streak.count === 0) &&
+      Array.isArray(data.months) && data.months.every(row => periodOK(row) && monthOK(row.month)) &&
+      new Set(data.months.map(row => row.month)).size === data.months.length;
     if (!playerOK(data.player, playerId)) return false;
     if (kind === 'rival') return playerOK(data.opponent, opponentId) && statsOK(data.headToHead) && rowsOK(data.maps) && rowsOK(data.types);
     return kind === 'summary' && statsOK(data.overall) && ['races', 'types', 'maps', 'opponents'].every(k => rowsOK(data[k]));
@@ -38,50 +61,58 @@
     if (!wanted) return [];
     for (const player of players || []) {
       if (!player || !idOK(player.eloId) || typeof player.name !== 'string') continue;
-      const names = [player.name, ...(Array.isArray(player.aliases) ? player.aliases : [])];
-      if (names.some(n => normalize(n) === wanted)) unique.set(Number(player.eloId), player);
+      if ([player.name, ...(Array.isArray(player.aliases) ? player.aliases : [])].some(n => normalize(n) === wanted)) unique.set(Number(player.eloId), player);
     }
     return [...unique.values()];
   }
   function createClient(options = {}) {
     const fetcher = options.fetch || ((...args) => global.fetch(...args));
     const storage = storageOf(options), now = options.now || Date.now;
-    const ttl = options.ttl ?? 5 * 60 * 1000;
-    // Each route has its own loading region. Give the bounded server fetches
-    // time to finish without making a slow recent list block the summary.
-    const timeouts = { summary: 100000, rival: 35000, recent: 220000 };
+    const daily = options.ttl == null, ttl = options.ttl;
+    const timeouts = { summary: 100000, activity: 220000, rival: 35000, recent: 220000 };
     const site = String(options.site || 'starlog'), base = options.base || API;
-    const memory = new Map(), pending = new Map(), failures = new Map();
+    const memory = new Map(), pending = new Map(), failures = new Map(), attempts = new Map();
+    const fresh = at => numberOK(at) && now() >= at && (daily ? kstDay(at) === kstDay(now()) : now() - at < ttl);
     function key(kind, playerId, opponentId) {
       return PREFIX + encodeURIComponent(site) + ':' + Number(playerId) + ':' + kind + (opponentId ? ':' + Number(opponentId) : '');
     }
+    function attemptFor(cacheKey) {
+      const memoryAttempt = attempts.get(cacheKey), storedAttempt = readJSON(storage, cacheKey + ':attempt');
+      const valid = attempt => attempt && numberOK(attempt.at) && dateOK(attempt.day) && ['loading', 'success', 'failed'].includes(attempt.status);
+      const latest = valid(storedAttempt) && (!valid(memoryAttempt) || storedAttempt.at >= memoryAttempt.at) ? storedAttempt : memoryAttempt;
+      if (valid(latest)) { attempts.set(cacheKey, latest); return latest; }
+      return null;
+    }
+    function recordAttempt(cacheKey, status) {
+      const value = { day: kstDay(now()), at: now(), status };
+      attempts.set(cacheKey, value); writeJSON(storage, cacheKey + ':attempt', value);
+    }
     function peek(kind, playerId, opponentId) {
       const cacheKey = key(kind, playerId, opponentId);
-      let entry = memory.get(cacheKey);
-      if (!entry) {
-        try { entry = JSON.parse(storage?.getItem(cacheKey) || 'null'); } catch {}
-      }
-      if (!entry || entry.site !== site || entry.kind !== kind || Number(entry.playerId) !== Number(playerId) ||
-          Number(entry.opponentId || 0) !== Number(opponentId || 0) || !numberOK(entry.checkedAt) ||
-          !validPayload(kind, entry.data, playerId, opponentId)) return null;
+      const memoryEntry = memory.get(cacheKey), storedEntry = readJSON(storage, cacheKey);
+      const valid = entry => entry && entry.site === site && entry.kind === kind && Number(entry.playerId) === Number(playerId) &&
+        Number(entry.opponentId || 0) === Number(opponentId || 0) && numberOK(entry.checkedAt) &&
+        validPayload(kind, entry.data, playerId, opponentId);
+      const entry = valid(storedEntry) && (!valid(memoryEntry) || storedEntry.checkedAt >= memoryEntry.checkedAt) ? storedEntry : memoryEntry;
+      if (!valid(entry)) return null;
       memory.set(cacheKey, entry);
-      const age = now() - entry.checkedAt;
-      return { ...entry, cached: true, stale: Boolean(entry.data.stale) || age < 0 || age >= ttl };
+      const attempt = attemptFor(cacheKey), failedToday = attempt?.day === kstDay(now()) && attempt.status === 'failed';
+      return { ...entry, cached: true, stale: Boolean(entry.data.stale) || !fresh(entry.checkedAt) || failedToday, error: failedToday };
     }
     function get(kind, playerId, opponentId, force = false) {
-      if (!['summary', 'rival', 'recent'].includes(kind) || !idOK(playerId) ||
+      if (!Object.hasOwn(timeouts, kind) || !idOK(playerId) ||
           (kind === 'rival' && (!idOK(opponentId) || Number(playerId) === Number(opponentId))) ||
           (kind === 'recent' && Number(playerId) !== 443)) return Promise.reject(new Error('조회할 선수를 확인해 주세요.'));
       const cacheKey = key(kind, playerId, opponentId);
       if (pending.has(cacheKey)) return pending.get(cacheKey);
       const previous = peek(kind, playerId, opponentId);
-      // A server-provided older snapshot is still useful. Keep its stale label
-      // while avoiding another upstream request on every local journal render.
-      if (!force && previous && now() >= previous.checkedAt && now() - previous.checkedAt < ttl) return Promise.resolve(previous);
-      const failed = failures.get(cacheKey);
-      if (!force && failed && now() - failed.at < 30000) {
-        return previous ? Promise.resolve({ ...previous, stale: true, error: true }) : Promise.reject(failed.error);
+      if (!force && previous && fresh(previous.checkedAt)) return Promise.resolve(previous);
+      const attempt = attemptFor(cacheKey), failed = failures.get(cacheKey);
+      if (!force && ((daily && attempt?.day === kstDay(now())) || (!daily && failed && now() - failed.at < 30000))) {
+        return previous ? Promise.resolve({ ...previous, stale: true, error: true }) :
+          Promise.reject(failed?.error || new Error('오늘 자동 확인을 시도했어요. 필요하면 다시 확인을 눌러 주세요.'));
       }
+      recordAttempt(cacheKey, 'loading');
       const request = Promise.resolve().then(async () => {
         const controller = new AbortController();
         let timer;
@@ -94,17 +125,17 @@
           });
           const data = await Promise.race([deadline, (async () => {
             const response = await fetcher(base + '/' + kind + '?' + params, { signal: controller.signal, cache: 'no-store' });
-            if (!response.ok) throw new Error('ELOBOARD 정보를 잠시 불러오지 못했어요.');
+            if (!response.ok) throw new Error('연동 전적을 잠시 확인하지 못했어요.');
             const body = await response.json();
             if (!validPayload(kind, body, playerId, opponentId)) throw new Error('선수 전적의 응답 형식을 확인하지 못했어요.');
             return body;
           })()]);
           const entry = { site, kind, playerId: Number(playerId), opponentId: Number(opponentId || 0), checkedAt: now(), data };
-          memory.set(cacheKey, entry); failures.delete(cacheKey);
-          try { storage?.setItem(cacheKey, JSON.stringify(entry)); } catch {}
+          memory.set(cacheKey, entry); failures.delete(cacheKey); recordAttempt(cacheKey, 'success');
+          writeJSON(storage, cacheKey, entry);
           return { ...entry, cached: false, stale: Boolean(data.stale) };
         } catch (error) {
-          failures.set(cacheKey, { at: now(), error });
+          failures.set(cacheKey, { at: now(), error }); recordAttempt(cacheKey, 'failed');
           if (previous) return { ...previous, stale: true, error: true };
           throw error;
         } finally { clearTimeout(timer); pending.delete(cacheKey); }
@@ -114,278 +145,429 @@
     }
     return { get, peek };
   }
-  function sourceURL(value, fallback) {
-    try {
-      const url = new URL(value);
-      if (url.protocol === 'https:' && ['eloboard.com', 'eloboard.co.kr'].includes(url.hostname)) return url.href;
-    } catch {}
-    return fallback;
-  }
-  function updatedText(result) {
-    const when = new Date(result.data.fetchedAt).toLocaleString('ko-KR', { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-    return (result.stale ? '새 정보를 확인하지 못해 마지막으로 확인한 전적을 보여드려요. · ' : '마지막 확인 · ') + when;
-  }
-  function statTable(rows, label) {
-    if (!rows.length) return '<p class="elo-public-empty">표시할 ' + escape(label) + ' 기록이 없어요.</p>';
-    return '<div class="elo-public-table"><table><thead><tr><th scope="col">' + escape(label) +
-      '</th><th scope="col">전적</th><th scope="col">승률</th></tr></thead><tbody>' + rows.map(row =>
-      '<tr><td>' + escape(row.label || row.name || row.key || '기타') + '</td><td>' + formatNumber(row.wins) +
-      '승 ' + formatNumber(row.losses) + '패</td><td>' + rate(row) + '</td></tr>').join('') + '</tbody></table></div>';
-  }
-  function card(label, value, sub) {
-    return '<div class="elo-public-metric"><span>' + escape(label) + '</span><strong>' + value + '</strong><small>' + escape(sub || '') + '</small></div>';
-  }
-  function summaryHTML(data) {
-    const total = data.overall, elo = data.player.elo;
-    const eloText = elo !== '' && elo != null && Number.isFinite(Number(elo)) ? formatNumber(elo) : '—';
-    const races = data.races.map(row => '<div><span>vs ' + escape(RACES[row.race] || row.label || row.race) +
-      '</span><b>' + formatNumber(row.wins) + '승 ' + formatNumber(row.losses) + '패</b><small>' + rate(row) + '</small></div>').join('');
-    const opponents = data.opponents.filter(row => idOK(row.id) && Number(row.id) !== Number(data.player.id));
-    return '<div class="elo-public-metrics">' + card('ELO', eloText, RACES[data.player.race] || data.player.race) +
-      card('전체 경기', formatNumber(total.games), 'ELOBOARD 집계') +
-      card('통산 전적', formatNumber(total.wins) + '<small>승</small> ' + formatNumber(total.losses) + '<small>패</small>', '전체 기간') +
-      card('승률', rate(total), '전체 경기 기준') + '</div>' +
-      (races ? '<div class="elo-public-races">' + races + '</div>' : '') +
-      '<details class="elo-public-details"><summary>맵 · 경기 유형 · 상대별 통계</summary><div class="elo-public-breakdowns">' +
-      '<section><h4>맵별 전적</h4>' + statTable(data.maps, '맵') + '</section><section><h4>경기 유형별 전적</h4>' +
-      statTable(data.types, '경기 유형') + '</section></div>' +
-      (opponents.length ? '<h4>자주 만난 상대 <small>선수를 누르면 맞대결을 확인해요</small></h4><div class="elo-public-opponents">' +
-        opponents.map(row => '<button type="button" data-elo-opponent="' + Number(row.id) + '"><b>' + escape(row.name) +
-          '</b><span>' + formatNumber(row.wins) + '승 ' + formatNumber(row.losses) + '패</span></button>').join('') + '</div>' : '') + '</details>';
-  }
-  function rivalHTML(data) {
-    const h = data.headToHead, dates = [h.from, h.to].filter(Boolean).map(escape).join(' ~ ');
-    return '<div class="elo-public-versus"><span>' + escape(data.player.name) + '</span><strong><b>' +
-      formatNumber(h.wins) + '</b><i>:</i><b>' + formatNumber(h.losses) + '</b></strong><span>' + escape(data.opponent.name) +
-      '</span></div><p class="elo-public-versus-note">' + formatNumber(h.games) + '경기 · ' + escape(data.player.name) +
-      ' 기준 승률 ' + rate(h) + (dates ? ' · ' + dates : '') + '</p>' +
-      (!h.games ? '<p class="elo-public-empty">ELOBOARD에 등록된 두 선수의 맞대결 기록이 없어요.</p>' : '') +
-      ((data.maps.length || data.types.length) ? '<details class="elo-public-details"><summary>맞대결 맵 · 유형별 전적</summary>' +
-        '<div class="elo-public-breakdowns"><section><h4>맵별 맞대결</h4>' + statTable(data.maps, '맵') +
-        '</section><section><h4>유형별 맞대결</h4>' + statTable(data.types, '경기 유형') + '</section></div></details>' : '');
-  }
   function createDirectory(options = {}) {
     const fetcher = options.fetch || ((...args) => global.fetch(...args)), storage = storageOf(options), now = options.now || Date.now;
-    let pending = null, snapshot = null, checkedAt = 0;
+    const cacheKey = PREFIX + 'directory', attemptKey = cacheKey + ':attempt', daily = options.ttl == null;
+    let pending = null, snapshot = null, checkedAt = 0, attempted = null;
     function get(force = false) {
       if (pending) return pending;
-      if (!force && snapshot && !snapshot.stale && now() >= checkedAt && now() - checkedAt < 5 * 60 * 1000) return Promise.resolve(snapshot);
+      const savedSnapshot = readJSON(storage, cacheKey);
+      if (savedSnapshot && Array.isArray(savedSnapshot.players) && savedSnapshot.players.length &&
+          numberOK(savedSnapshot.checkedAt) && (!snapshot || savedSnapshot.checkedAt >= checkedAt)) {
+        snapshot = { players: savedSnapshot.players, stale: Boolean(savedSnapshot.stale) }; checkedAt = savedSnapshot.checkedAt;
+      }
+      const savedAttempt = readJSON(storage, attemptKey);
+      if (savedAttempt && numberOK(savedAttempt.at) && dateOK(savedAttempt.day) &&
+          (!attempted || savedAttempt.at >= attempted.at)) attempted = savedAttempt;
+      const fresh = now() >= checkedAt && (daily ? kstDay(checkedAt) === kstDay(now()) : now() - checkedAt < options.ttl);
+      if (!force && snapshot && fresh) return Promise.resolve({ ...snapshot,
+        stale: snapshot.stale || (attempted?.day === kstDay(now()) && attempted.status === 'failed') });
+      if (!force && daily && attempted?.day === kstDay(now())) {
+        const fallback = snapshot || readJSON(storage, 'starlog-player-directory-v1');
+        if (Array.isArray(fallback?.players) && fallback.players.length) return Promise.resolve({ players: fallback.players, stale: true });
+        return Promise.reject(new Error('오늘 선수 목록을 확인하지 못했어요. 다시 확인을 눌러 주세요.'));
+      }
+      attempted = { day: kstDay(now()), at: now(), status: 'loading' }; writeJSON(storage, attemptKey, attempted);
       pending = Promise.resolve().then(async () => {
-        let saved;
-        try { saved = JSON.parse(storage?.getItem('starlog-player-directory-v1') || 'null'); } catch {}
-        const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 12000);
+        const saved = readJSON(storage, 'starlog-player-directory-v1');
+        const controller = new AbortController(), timer = setTimeout(() => controller.abort(), options.timeout ?? 12000);
         try {
           const response = await fetcher(DIRECTORY, { cache: 'no-store', signal: controller.signal });
           if (!response.ok) throw new Error('directory');
           const data = await response.json();
           if (!Array.isArray(data.players) || !data.players.length) throw new Error('directory');
           snapshot = { players: data.players, stale: false }; checkedAt = now();
+          attempted = { day: kstDay(now()), at: now(), status: 'success' }; writeJSON(storage, attemptKey, attempted);
+          writeJSON(storage, cacheKey, { ...snapshot, checkedAt });
           return snapshot;
         } catch {
+          attempted = { day: kstDay(now()), at: now(), status: 'failed' }; writeJSON(storage, attemptKey, attempted);
           const fallback = snapshot || saved;
           if (Array.isArray(fallback?.players) && fallback.players.length) {
             snapshot = { players: fallback.players, stale: true };
             return snapshot;
           }
-          throw new Error('선수 목록을 불러오지 못했어요. 잠시 후 새로 확인해 주세요.');
+          throw new Error('선수 목록을 불러오지 못했어요. 필요하면 다시 확인을 눌러 주세요.');
         } finally { clearTimeout(timer); pending = null; }
       });
       return pending;
     }
     return { get };
   }
-  const directoryClient = createDirectory();
-  const clients = new Map();
-  let nextMount = 0;
-  let refreshVisibleView = null;
-  if (global.document) {
-    const refresh = () => {
-      if (global.document.visibilityState === 'visible') refreshVisibleView?.();
-    };
-    global.addEventListener('focus', refresh);
-    global.document.addEventListener('visibilitychange', refresh);
-    // The open dashboard stays current; hidden tabs do not poll the source.
-    global.setInterval(refresh, 5 * 60 * 1000);
+  function sourceURL(value, fallback) {
+    try { const url = new URL(value); if (url.protocol === 'https:' && ['eloboard.com', 'eloboard.co.kr'].includes(url.hostname)) return url.href; } catch {}
+    return fallback;
   }
-  function mount(host, options = {}) {
-    if (!host) return;
-    const site = String(options.site || 'starlog'), name = String(options.name || '').trim();
+  function checkedText(result) {
+    if (!result?.data?.fetchedAt) return '';
+    return new Date(result.data.fetchedAt).toLocaleString('ko-KR', {
+      timeZone: 'Asia/Seoul', year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit'
+    }) + ' 확인' + (result.stale ? ' · 마지막 확인 자료' : '');
+  }
+  function localStats(rows) {
+    const wins = rows.filter(row => row.result === 'W').length, games = rows.length;
+    return { wins, losses: games - wins, games, winRate: games ? Math.round(wins / games * 1000) / 10 : 0 };
+  }
+  function localGroups(matches, key) {
+    const groups = new Map();
+    for (const match of matches) {
+      const value = key === 'month' ? String(match.date).slice(0, 7) : String(match[key] || '미입력');
+      if (!groups.has(value)) groups.set(value, []);
+      groups.get(value).push(match);
+    }
+    if (key === 'race') for (const race of ['T', 'Z', 'P', 'R']) if (!groups.has(race)) groups.set(race, []);
+    return [...groups].map(([value, rows]) => ({ key: value, label: key === 'race' ? RACES[value] || value : value, ...localStats(rows) }))
+      .sort((a, b) => key === 'month' ? b.key.localeCompare(a.key) : b.games - a.games);
+  }
+  function metric(key, title, value, sub, icon) {
+    return '<div class="metric" data-elo-metric="' + key + '"><span class="metric-icon">' + icon +
+      '</span><div class="metric-title">' + title + '</div><strong>' + value + '</strong><small>' + escape(sub) + '</small></div>';
+  }
+  function recordText(value) {
+    return formatNumber(value.wins) + '<small>승</small> ' + formatNumber(value.losses) + '<small>패</small>';
+  }
+  function rowTable(rows, { search = false, empty = '표시할 전적이 없어요.' } = {}) {
+    if (!rows.length) return '<p class="stat-note elo-empty">' + escape(empty) + '</p>';
+    return '<div class="table-wrap"><table><thead><tr><th>구분</th><th>경기 수</th><th>승</th><th>패</th><th>승률</th><th>승률 그래프</th></tr></thead><tbody>' +
+      rows.map(row => {
+        const known = row.complete !== false && statsOK(row);
+        const label = escape(row.label || row.name || row.month || row.key || '미입력');
+        return '<tr><td>' + (search && idOK(row.id) ? '<button type="button" class="icon-btn" data-elo-opponent="' + Number(row.id) + '">' + label + '</button>' : label) +
+          '</td><td>' + (known ? formatNumber(row.games) + '판' : '—') + '</td><td>' + (known ? formatNumber(row.wins) : '—') +
+          '</td><td>' + (known ? formatNumber(row.losses) : '—') + '</td><td>' + (known ? rate(row) : '확인 범위 부족') +
+          '</td><td>' + (known ? '<div class="bar-track"><div class="bar-fill" style="width:' + Math.max(0, Math.min(100, row.winRate)) + '%"></div></div>' : '—') + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+  }
+  function choicesHTML(rows, action) {
+    return '<p class="stat-note">같은 이름이나 별명으로 여러 선수가 있어요. 선수를 선택해 주세요.</p><div class="elo-choices">' +
+      rows.map(row => '<button type="button" class="btn small" data-elo-choice="' + action + '" data-player-id="' + Number(row.eloId) + '">' +
+        escape(row.name) + ' · ' + escape(RACES[row.race] || row.race || '종족 미등록') + ' · ' + escape(row.tierLabel || row.tier || '티어 미등록') +
+        ' <small>#' + Number(row.eloId) + '</small></button>').join('') + '</div>';
+  }
+  const directoryClient = createDirectory(), clients = new Map(), preferences = new Map(), views = new Set();
+  let nextMount = 0;
+  function clientFor(site) {
+    if (!clients.has(site)) clients.set(site, createClient({ site }));
+    return clients.get(site);
+  }
+  function attachView(host, autoRefresh) {
     const generation = ++nextMount;
     host.dataset.eloMount = String(generation);
-    host.className = 'elo-public';
-    host.setAttribute('aria-label', 'ELOBOARD 전적');
-    const alive = () => host.isConnected && host.dataset.eloMount === String(generation);
-    if (!clients.has(site)) clients.set(site, createClient({ site }));
-    const client = clients.get(site);
-    let owner = null, directory = null, summary = null, rival = null, rivalTicket = 0, summaryTicket = 0, recentTicket = 0;
+    let destroyed = false;
+    const alive = () => !destroyed && host.isConnected && host.dataset.eloMount === String(generation);
+    const view = { alive, refresh: autoRefresh, visible: () => host.getClientRects().length > 0 };
+    for (const old of views) if (!old.alive()) views.delete(old);
+    views.add(view);
+    return { alive, destroy() { destroyed = true; views.delete(view); } };
+  }
+  if (global.document) {
+    const refreshVisible = () => {
+      if (global.document.visibilityState !== 'visible') return;
+      for (const view of views) {
+        if (!view.alive()) views.delete(view);
+        else if (view.visible()) view.refresh();
+      }
+    };
+    global.addEventListener('focus', refreshVisible);
+    global.document.addEventListener('visibilitychange', refreshVisible);
+  }
+  function mountStatistics(host, options = {}) {
+    if (!host) return { refresh() {}, destroy() {} };
+    host.__eloController?.destroy();
+    const site = String(options.site || 'starlog'), name = String(options.name || '').trim(), client = clientFor(site);
+    const matches = (Array.isArray(options.matches) ? options.matches : []).filter(row => row && ['W', 'L'].includes(row.result) && dateOK(row.date));
+    const preferenceKey = site + '|' + normalize(name) + '|' + String(options.race || '');
+    const preference = preferences.get(preferenceKey) || { source: name || options.fixedId ? 'elo' : 'local', tab: 'race' };
+    preferences.set(preferenceKey, preference);
+    let owner = null, directory = null, ownerChoices = [], opponentChoices = [], unavailable = false, identityMessage = '';
+    const states = { summary: { result: null, loading: false, error: '' }, activity: { result: null, loading: false, error: '' } };
+    const tickets = { summary: 0, activity: 0, owner: 0, rival: 0 };
+    let rival = null, rivalState = null, rivalMessage = '', query = '', localQuery = '';
+    const binding = attachView(host, () => refresh(false)), alive = binding.alive;
     const $ = selector => host.querySelector(selector);
-    host.innerHTML = '<div class="elo-public-heading"><div><span class="elo-public-label">ELOBOARD</span><h2>' +
-      escape(name || '선수') + ' 전적</h2></div><button type="button" class="btn small" data-elo-refresh>↻ 새로 확인</button></div>' +
-      '<p class="elo-public-scope">ELOBOARD에 등록된 경기의 통계예요. 직접 작성한 스폰·래더·연습 기록은 아래에서 따로 볼 수 있어요.</p>' +
-      '<p class="elo-public-status" data-elo-status role="status" aria-live="polite">선수 정보를 확인하고 있어요…</p>' +
-      '<div data-elo-owner></div><div data-elo-summary></div>' +
-      '<section class="elo-public-rival" data-elo-rival hidden><h3>상대전적 검색</h3><form data-elo-form>' +
-      '<label>상대 선수 이름<input name="opponent" maxlength="40" autocomplete="off" placeholder="선수 이름 또는 등록된 별명" list="elo-opponents-' +
-      generation + '" required></label><button type="submit" class="btn primary">맞대결 확인</button></form>' +
-      '<datalist id="elo-opponents-' + generation + '"></datalist><p class="elo-public-status" data-elo-rival-status role="status" aria-live="polite">' +
-      '상대 이름을 검색하면 ELOBOARD의 전체 기간 맞대결 전적을 보여드려요.</p><div data-elo-choices></div><div data-elo-rival-result></div></section>' +
-      '<div data-elo-recent></div><a class="elo-public-source" data-elo-source target="_blank" rel="noopener noreferrer" hidden>ELOBOARD 원본 보기 ↗</a>';
-    function status(text, stale = false) {
+    const activeSource = () => preference.source === 'elo' && !unavailable ? 'elo' : 'local';
+    host.classList.add('elo-statistics');
+    host.innerHTML = '<div class="section-top"><h2>나의 통계 ✧</h2><span class="date-label">' + kstDay().replaceAll('-', '.') + ' 기준</span></div><div class="elo-stat-source"><label>전적 기준 <select data-elo-source aria-label="통계 전적 기준">' +
+      '<option value="elo">연동 전적 · ELOBOARD</option><option value="local">직접 기록 · 래더 포함</option></select></label>' +
+      '<button type="button" class="btn small" data-elo-refresh title="오늘 이미 확인했어도 직접 다시 조회해요">↻ 다시 확인</button>' +
+      '<span class="date-label">한국시간 하루 1회 자동 확인</span></div><p class="stat-note elo-sync-status" data-elo-status role="status" aria-live="polite"></p>' +
+      '<div data-elo-owner></div><div class="metrics" data-elo-metrics></div>' +
+      '<div class="section-top"><h2>상세 전적</h2><span class="date-label" data-elo-detail-status></span></div>' +
+      '<div class="segmented" role="group" aria-label="상세 전적 구분">' + TABS.map(([key, label]) =>
+        '<button type="button" data-elo-tab="' + key + '">' + label + '</button>').join('') +
+      '</div><div class="panel elo-stat-panel" data-elo-detail><div data-elo-search></div><div data-elo-table></div></div>' +
+      '<p class="stat-note" data-elo-footnote></p>';
+    function renderStatus() {
+      if (!alive()) return;
+      const remote = activeSource() === 'elo';
+      $('[data-elo-source]').value = remote ? 'elo' : 'local';
+      let text = identityMessage;
+      if (!text && remote) {
+        const parts = [['summary', '통산'], ['activity', '기간']].map(([key, label]) => {
+          const state = states[key];
+          return state.result ? label + ' ' + checkedText(state.result) : state.loading ? label + ' 전적 확인 중' : state.error ? label + ' 전적 확인 실패' : '';
+        }).filter(Boolean);
+        text = (owner ? owner.name + ' · ' : '') + parts.join(' · ');
+      }
+      if (!text && !remote) text = '직접 작성한 스폰·래더·연습 기록만 집계해요.';
+      if (remote && (states.summary.error || states.activity.error)) text += ' · 필요하면 다시 확인을 눌러 주세요.';
       $('[data-elo-status]').textContent = text;
-      $('[data-elo-status]').classList.toggle('is-stale', stale);
+      $('[data-elo-status]').classList.toggle('is-stale', remote && Object.values(states).some(state => state.error || state.result?.stale));
+      $('[data-elo-refresh]').disabled = states.summary.loading || states.activity.loading;
     }
-    function fillDirectory() {
-      if (!directory || !alive()) return;
-      const names = [...new Set(directory.players.filter(p => idOK(p?.eloId)).map(p => p.name).filter(Boolean))];
-      $('datalist').innerHTML = names.map(value => '<option value="' + escape(value) + '"></option>').join('');
+    function renderMetrics() {
+      if (!alive()) return;
+      const date = kstDay(), month = date.slice(0, 7);
+      let todayStats, monthStats, total, streak = { result: null, count: 0, complete: false }, todayNote, monthNote, totalNote;
+      if (activeSource() === 'local') {
+        todayStats = localStats(matches.filter(row => row.date === date)); monthStats = localStats(matches.filter(row => row.date.startsWith(month))); total = localStats(matches);
+        const sorted = matches.slice().sort((a, b) => b.date.localeCompare(a.date) || Number(b.created || 0) - Number(a.created || 0));
+        streak = { result: sorted[0]?.result || null, count: 0, complete: true };
+        for (const row of sorted) { if (row.result !== streak.result) break; streak.count++; }
+        todayNote = '직접 기록 · ' + date; monthNote = formatNumber(monthStats.games) + '경기 · ' + monthStats.wins + '승 ' + monthStats.losses + '패';
+        totalNote = total.wins + '승 ' + total.losses + '패 · 직접 기록';
+      } else {
+        const activity = states.activity.result?.data;
+        if (activity?.today.complete && activity.today.date === date) todayStats = activity.today;
+        if (activity?.currentMonth.complete && activity.currentMonth.month === month) monthStats = activity.currentMonth;
+        total = states.summary.result?.data.overall;
+        if (activity?.streak) streak = activity.streak;
+        todayNote = todayStats ? date + ' · 연동 전적' : states.activity.loading ? '전적 확인 중' : '오늘 전체 범위 확인 불가';
+        monthNote = monthStats ? formatNumber(monthStats.games) + '경기 · ' + monthStats.wins + '승 ' + monthStats.losses + '패' :
+          states.activity.loading ? '전적 확인 중' : '이번 달 전체 범위 확인 불가';
+        totalNote = total ? total.wins + '승 ' + total.losses + '패 · ELOBOARD 통산' : states.summary.loading ? '전적 확인 중' : '통산 전적 확인 불가';
+      }
+      const streakValue = streak.count && streak.result ? (streak.complete ? '' : '<small>최소 </small>') + formatNumber(streak.count) +
+        '<small>' + (streak.result === 'W' ? '연승' : '연패') + '</small>' : streak.complete ? '0<small>경기</small>' : '—';
+      $('[data-elo-metrics]').innerHTML =
+        metric('today', '오늘의 전적', todayStats ? recordText(todayStats) : '—', todayNote, '🎮') +
+        metric('month', '이번 달 승률', monthStats ? rate(monthStats) : '—', monthNote, '🌷') +
+        metric('streak', '현재 연속 기록', streakValue, streak.complete ? '최근 확인된 경기부터 집계했어요' : '확인된 경기 범위 기준', '✨') +
+        metric('overall', '전체 경기', total ? formatNumber(total.games) + '<small>판</small>' : '—', totalNote, '📖');
     }
-    async function directoryReady(force = false) {
-      if (force || !directory || directory.stale) directory = await directoryClient.get(force);
-      fillDirectory();
+    function fillNames() {
+      const list = $('datalist');
+      if (!list || !directory) return;
+      list.innerHTML = [...new Set(directory.players.filter(row => idOK(row?.eloId)).map(row => row.name).filter(Boolean))]
+        .map(value => '<option value="' + escape(value) + '"></option>').join('');
+    }
+    async function getDirectory(force = false) {
+      directory = await directoryClient.get(force);
+      if (alive()) fillNames();
       return directory;
     }
-    function drawSummary(result) {
-      if (!alive() || Number(result.data.player.id) !== owner?.eloId) return;
-      summary = result.data;
-      $('h2').textContent = result.data.player.name + ' 전적';
-      $('[data-elo-summary]').innerHTML = summaryHTML(result.data);
-      status(updatedText(result), result.stale);
-      const source = $('[data-elo-source]');
-      source.href = sourceURL(result.data.sourceUrl, 'https://eloboard.com/players/' + owner.eloId);
-      source.hidden = false;
+    function renderRival() {
+      const resultNode = $('[data-elo-rival-result]'), status = $('[data-elo-rival-status]');
+      if (!resultNode || !status) return;
+      if (activeSource() !== 'elo') { resultNode.innerHTML = ''; status.textContent = localQuery ? '직접 기록에서 검색한 상대 전적이에요.' : '직접 기록에 저장된 상대 이름을 검색해요.'; return; }
+      status.textContent = rivalState ? checkedText(rivalState) : rivalMessage || '상대 이름을 검색하면 전체 기간 맞대결을 확인해요.';
+      status.classList.toggle('is-stale', Boolean(rivalState?.stale));
+      if (!rivalState) { resultNode.innerHTML = ''; return; }
+      const data = rivalState.data, h = data.headToHead;
+      resultNode.innerHTML = '<div class="elo-rival-summary"><b>' + escape(data.player.name) + ' vs ' + escape(data.opponent.name) +
+        '</b><span>' + formatNumber(h.games) + '경기 · ' + formatNumber(h.wins) + '승 ' + formatNumber(h.losses) + '패 · ' + rate(h) +
+        '</span><small>' + escape([h.from, h.to].filter(Boolean).join(' ~ ')) + '</small></div>' +
+        ((data.maps.length || data.types.length) ? '<details class="elo-rival-details"><summary>맞대결 맵·유형별 전적</summary>' +
+          rowTable(data.maps.map(row => ({ ...row, label: row.label || row.name }))) +
+          rowTable(data.types.map(row => ({ ...row, label: row.label || row.key }))) + '</details>' : '');
     }
-    async function loadSummary(force = false) {
-      const ticket = ++summaryTicket, playerId = owner.eloId;
-      const cached = client.peek('summary', playerId);
-      if (cached) drawSummary(cached);
-      else status('ELOBOARD 전적을 불러오고 있어요…');
-      $('[data-elo-refresh]').disabled = true;
+    function ensureSearch() {
+      const target = $('[data-elo-search]');
+      if (preference.tab !== 'opponent') { target.innerHTML = ''; return; }
+      if (!$('[data-elo-form]')) {
+        target.innerHTML = '<form class="elo-rival-form" data-elo-form><label>상대 선수 이름<input name="opponent" maxlength="40" required autocomplete="off" ' +
+          'placeholder="상대 이름 또는 등록된 별명" list="elo-names-' + host.dataset.eloMount + '" value="' + escape(query) + '"></label>' +
+          '<button class="btn small" type="submit">상대 검색</button></form><datalist id="elo-names-' + host.dataset.eloMount + '"></datalist>' +
+          '<p class="stat-note elo-sync-status" data-elo-rival-status role="status" aria-live="polite"></p><div data-elo-choices></div><div data-elo-rival-result></div>';
+        $('[data-elo-form]').addEventListener('submit', searchRival);
+        $('[name="opponent"]').addEventListener('input', event => { query = event.target.value; });
+      }
+      fillNames(); renderRival();
+    }
+    function renderDetail() {
+      if (!alive()) return;
+      const key = preference.tab, local = activeSource() === 'local' || key === 'build';
+      host.querySelectorAll('[data-elo-tab]').forEach(button => {
+        const active = button.dataset.eloTab === key;
+        button.classList.toggle('selected', active); button.setAttribute('aria-pressed', String(active));
+      });
+      ensureSearch();
+      let rows = [], message = '', caption = '', note = '';
+      if (local) {
+        rows = localGroups(matches, key);
+        if (key === 'opponent' && localQuery) rows = rows.filter(row => normalize(row.label).includes(localQuery));
+        caption = '직접 기록 · 래더 포함';
+        note = key === 'build' ? '빌드별 전적은 직접 작성한 기록의 빌드를 기준으로 집계해요.' :
+          '승률은 직접 기록의 승리 ÷ 전체 경기로 계산해요. 연동 전적과 중복 합산하지 않아요.';
+        message = '직접 기록한 경기가 없어요.';
+      } else if (key === 'month') {
+        rows = (states.activity.result?.data.months || []).map(row => ({ ...row, label: row.month }));
+        caption = 'ELOBOARD · 확인된 월별 범위';
+        message = states.activity.loading ? '월별 전적을 확인하고 있어요…' : '월별 전적을 확인하지 못했어요.';
+        note = '해당 달 전체를 확인한 경우에만 월 전체 전적을 표시해요. 확인 범위가 부족한 달은 —로 표시해요.';
+      } else {
+        const summary = states.summary.result?.data;
+        rows = summary?.[{ opponent: 'opponents', map: 'maps', race: 'races', type: 'types' }[key]] || [];
+        rows = rows.map(row => ({ ...row, label: key === 'race' ? RACES[row.race] || row.label : row.label || row.name || row.key }));
+        caption = 'ELOBOARD · 원본 집계 기준';
+        message = states.summary.loading ? '전적을 확인하고 있어요…' : '연동 전적을 확인하지 못했어요.';
+        note = key === 'opponent' ? '현재 조회된 상대 목록이에요. 목록에 없는 선수도 위에서 이름으로 검색할 수 있어요.' :
+          '원본에서 분류된 경기의 전적이에요. 분류별 합계가 통산 경기 수와 다를 수 있어요.';
+      }
+      $('[data-elo-detail-status]').textContent = caption;
+      $('[data-elo-table]').innerHTML = rowTable(rows, { search: !local && key === 'opponent', empty: message });
+      $('[data-elo-footnote]').textContent = note;
+    }
+    function renderAll() { renderStatus(); renderMetrics(); renderDetail(); }
+    async function load(kind, force = false) {
+      if (!owner || !alive()) return;
+      const id = owner.eloId, ticket = ++tickets[kind], state = states[kind];
+      state.result = client.peek(kind, id) || state.result; state.loading = true; state.error = ''; renderAll();
       try {
-        const result = await client.get('summary', playerId, null, force);
-        if (alive() && ticket === summaryTicket) drawSummary(result);
-      } catch {
-        if (alive() && ticket === summaryTicket) status('ELOBOARD 전적을 잠시 불러오지 못했어요. 아래의 내 기록 통계는 계속 볼 수 있어요.');
-      } finally { if (alive() && ticket === summaryTicket) $('[data-elo-refresh]').disabled = false; }
-    }
-    function drawRecent(result) {
-      const data = result.data;
-      $('[data-elo-recent]').innerHTML = '<details class="elo-public-details elo-public-recent" open><summary>최도랑 최근 경기 · ' +
-        data.matches.length + '건</summary><p class="elo-public-status' + (result.stale ? ' is-stale' : '') + '">' +
-        escape(updatedText(result)) + '</p>' + ((!data.complete || data.warning) ?
-          '<p class="elo-public-warning">' + escape(data.warning || '공개 화면에서 확인된 경기만 표시하고 있어요. 일부 경기가 빠질 수 있어요.') + '</p>' : '') +
-        (data.matches.length ? '<div class="elo-public-table"><table><thead><tr><th>날짜</th><th>상대</th><th>맵</th><th>결과</th><th>유형</th></tr></thead><tbody>' +
-          data.matches.map(row => '<tr><td>' + escape(row.date) + '</td><td>' + escape(row.opponent) +
-            (RACES[row.race] ? ' <small>' + escape(row.race) + '</small>' : '') + '</td><td>' + escape(row.map || '맵 미등록') +
-            '</td><td><span class="elo-public-result ' + (row.result === 'W' ? 'is-win' : 'is-loss') + '">' + (row.result === 'W' ? '승' : '패') +
-            '</span></td><td>' + escape(row.type || '기타') + '</td></tr>').join('') + '</tbody></table></div>' :
-          '<p class="elo-public-empty">현재 확인된 최근 경기가 없어요.</p>') + '</details>';
-    }
-    async function loadRecent(force = false) {
-      if (!options.recent || owner?.eloId !== 443) return;
-      const ticket = ++recentTicket, cached = client.peek('recent', 443);
-      if (cached) drawRecent(cached);
-      else $('[data-elo-recent]').innerHTML = '<p class="elo-public-status">최근 50경기를 확인하고 있어요…</p>';
-      try {
-        const result = await client.get('recent', 443, null, force);
-        if (alive() && ticket === recentTicket) drawRecent(result);
-      } catch {
-        if (alive() && ticket === recentTicket) $('[data-elo-recent]').innerHTML = '<p class="elo-public-status">최근 경기 목록을 잠시 불러오지 못했어요. 통계와 상대전적은 각각 확인할 수 있어요.</p>';
+        const result = await client.get(kind, id, null, force);
+        if (!alive() || ticket !== tickets[kind] || owner.eloId !== id) return;
+        state.result = result; state.error = result.error ? '조회 지연' : '';
+      } catch (error) {
+        if (!alive() || ticket !== tickets[kind]) return;
+        state.error = error.message;
+      } finally {
+        if (alive() && ticket === tickets[kind]) { state.loading = false; renderAll(); }
       }
     }
     async function lookupRival(opponent, force = false) {
       if (!owner || !alive()) return;
-      const ticket = ++rivalTicket, playerId = owner.eloId, opponentId = Number(opponent.eloId || opponent.id);
-      const state = $('[data-elo-rival-status]'), resultNode = $('[data-elo-rival-result]');
-      if (!idOK(opponentId) || opponentId === playerId) { state.textContent = '등록된 선수와 다른 상대를 선택해 주세요.'; return; }
-      rival = { ...opponent, eloId: opponentId };
-      $('[name="opponent"]').value = opponent.name;
-      $('[data-elo-choices]').replaceChildren();
-      const cached = client.peek('rival', playerId, opponentId);
-      resultNode.innerHTML = cached ? rivalHTML(cached.data) : '';
-      state.textContent = cached ? updatedText(cached) : opponent.name + ' 선수와의 맞대결을 확인하고 있어요…';
-      state.classList.toggle('is-stale', Boolean(cached?.stale));
+      const id = Number(opponent.eloId || opponent.id), ownerId = owner.eloId, ticket = ++tickets.rival;
+      if (!idOK(id) || id === ownerId) { rivalMessage = '기준 선수와 다른 상대를 선택해 주세요.'; rivalState = null; renderRival(); return; }
+      rival = { ...opponent, eloId: id }; query = opponent.name;
+      if ($('[name="opponent"]')) $('[name="opponent"]').value = query;
+      $('[data-elo-choices]')?.replaceChildren();
+      rivalState = client.peek('rival', ownerId, id); rivalMessage = '상대 전적을 확인하고 있어요…'; renderRival();
       try {
-        const result = await client.get('rival', playerId, opponentId, force);
-        if (!alive() || ticket !== rivalTicket || owner.eloId !== playerId) return;
-        resultNode.innerHTML = rivalHTML(result.data); state.textContent = updatedText(result);
-        state.classList.toggle('is-stale', result.stale);
-      } catch {
-        if (alive() && ticket === rivalTicket) state.textContent = '맞대결 전적을 잠시 불러오지 못했어요. 잠시 후 다시 확인해 주세요.';
-      }
+        const result = await client.get('rival', ownerId, id, force);
+        if (!alive() || ticket !== tickets.rival || owner.eloId !== ownerId) return;
+        rivalState = result; rivalMessage = '';
+      } catch (error) {
+        if (!alive() || ticket !== tickets.rival) return;
+        rivalMessage = error.message;
+      } finally { if (alive() && ticket === tickets.rival) renderRival(); }
     }
-    function choicesHTML(list, action) {
-      return '<p>같은 이름이나 별명으로 여러 선수가 있어요. 선수를 선택해 주세요.</p><div class="elo-public-choices">' +
-        list.map(p => '<button type="button" class="btn small" data-elo-choice="' + action + '" data-player-id="' + Number(p.eloId) + '">' +
-          escape(p.name) + ' · ' + escape(RACES[p.race] || p.race || '종족 미등록') + ' · ' + escape(p.tierLabel || p.tier || '티어 미등록') +
-          ' <small>#' + Number(p.eloId) + '</small></button>').join('') + '</div>';
-    }
-    let ownerChoices = [], opponentChoices = [];
-    function useOwner(player) {
-      owner = { ...player, eloId: Number(player.eloId) };
-      $('h2').textContent = owner.name + ' 전적';
-      $('[data-elo-owner]').replaceChildren();
-      $('[data-elo-rival]').hidden = false;
-      loadSummary(); loadRecent();
-      directoryReady().catch(() => {});
-    }
-    async function identify(force = false) {
-      if (!name && !options.fixedId) { status('프로필에 선수 이름을 등록하면 ELOBOARD 전적도 확인할 수 있어요.'); return; }
-      if (options.fixedId === 443) { useOwner({ eloId: 443, name: '최도랑', race: 'P' }); return; }
-      try {
-        await directoryReady(force);
-        if (!alive()) return;
-        ownerChoices = candidates(directory.players, name);
-        if (ownerChoices.length === 1) { useOwner(ownerChoices[0]); return; }
-        if (ownerChoices.length > 1) {
-          status('등록된 이름과 연결할 ELOBOARD 선수를 선택해 주세요.');
-          $('[data-elo-owner]').innerHTML = choicesHTML(ownerChoices, 'owner');
-        } else status('ELOBOARD 선수 DB에서 ‘' + name + '’ 이름을 찾지 못했어요. 아래의 내 기록 통계는 그대로 볼 수 있어요.');
-      } catch (error) { if (alive()) status(error.message); }
-    }
-    $('[data-elo-form]').addEventListener('submit', async event => {
+    async function searchRival(event) {
       event.preventDefault();
-      const query = $('[name="opponent"]').value.trim();
-      const ticket = ++rivalTicket;
+      query = String($('[name="opponent"]')?.value || '').trim();
       if (!query || query.length > 40) return;
-      rival = null; $('[data-elo-rival-result]').replaceChildren(); $('[data-elo-choices]').replaceChildren();
-      $('[data-elo-rival-status]').textContent = '상대 선수를 확인하고 있어요…';
+      const ticket = ++tickets.rival;
+      rival = null; rivalState = null; $('[data-elo-choices]')?.replaceChildren();
+      if (activeSource() === 'local') { localQuery = normalize(query); renderDetail(); return; }
+      localQuery = ''; rivalMessage = '상대 선수를 확인하고 있어요…'; renderRival();
       try {
-        await directoryReady();
-        if (!alive() || ticket !== rivalTicket) return;
+        await getDirectory();
+        if (!alive() || ticket !== tickets.rival) return;
         opponentChoices = candidates(directory.players, query);
         if (opponentChoices.length === 1) { lookupRival(opponentChoices[0]); return; }
-        if (opponentChoices.length > 1) {
-          $('[data-elo-rival-status]').textContent = '조회할 상대 선수를 선택해 주세요.';
-          $('[data-elo-choices]').innerHTML = choicesHTML(opponentChoices, 'opponent');
-        } else $('[data-elo-rival-status]').textContent = '선수 DB에서 찾지 못했어요. ELOBOARD에 등록된 이름이나 별명을 입력해 주세요.';
-      } catch (error) { if (alive() && ticket === rivalTicket) $('[data-elo-rival-status]').textContent = error.message; }
-    });
-    host.addEventListener('click', event => {
+        rivalMessage = opponentChoices.length ? '조회할 상대 선수를 선택해 주세요.' : '등록된 선수 이름이나 별명을 찾지 못했어요.';
+        if (opponentChoices.length && $('[data-elo-choices]')) $('[data-elo-choices]').innerHTML = choicesHTML(opponentChoices, 'opponent');
+      } catch (error) { if (alive() && ticket === tickets.rival) rivalMessage = error.message; }
+      renderRival();
+    }
+    function useOwner(player, force = false) {
+      owner = { ...player, eloId: Number(player.eloId) }; unavailable = false; identityMessage = '';
+      $('[data-elo-owner]').replaceChildren();
+      load('summary', force); load('activity', force);
+    }
+    async function identify(force = false) {
+      const ticket = ++tickets.owner;
+      if (Number(options.fixedId) === 443) { useOwner({ eloId: 443, name: '최도랑', race: 'P' }, force); return; }
+      if (!name) { unavailable = true; identityMessage = '프로필에 선수 이름을 등록하면 연동 전적도 확인할 수 있어요. 지금은 직접 기록을 표시해요.'; renderAll(); return; }
+      identityMessage = '등록한 선수 정보를 확인하고 있어요…'; renderStatus();
+      try {
+        await getDirectory(force);
+        if (!alive() || ticket !== tickets.owner) return;
+        ownerChoices = candidates(directory.players, name);
+        if (ownerChoices.length === 1) { useOwner(ownerChoices[0], force); return; }
+        unavailable = !ownerChoices.length;
+        identityMessage = ownerChoices.length ? '전적을 확인할 선수를 선택해 주세요.' :
+          '등록된 이름을 찾지 못해 직접 기록을 표시해요. 선수 이름을 확인하거나 다시 확인을 눌러 주세요.';
+        $('[data-elo-owner]').innerHTML = ownerChoices.length ? choicesHTML(ownerChoices, 'owner') : '';
+      } catch (error) {
+        if (!alive() || ticket !== tickets.owner) return;
+        unavailable = true; identityMessage = error.message + ' 직접 기록은 계속 볼 수 있어요.';
+      }
+      renderAll();
+    }
+    function refresh(force = true) {
+      if (!alive()) return;
+      if (!owner) { identify(force); return; }
+      if (force) getDirectory(true).catch(() => {});
+      load('summary', force); load('activity', force);
+      if (rival && activeSource() === 'elo' && normalize(query) === normalize(rival.name)) lookupRival(rival, force);
+    }
+    const onClick = event => {
       const button = event.target.closest('button');
       if (!button || !host.contains(button)) return;
-      if (button.hasAttribute('data-elo-refresh')) {
-        if (!owner) identify(true);
-        else {
-          directoryReady(true).catch(() => {});
-          loadSummary(true); loadRecent(true); if (rival) lookupRival(rival, true);
-        }
-      }
+      if (button.hasAttribute('data-elo-refresh')) refresh(true);
+      if (button.dataset.eloTab) { preference.tab = button.dataset.eloTab; renderDetail(); }
       if (button.dataset.eloChoice) {
         const list = button.dataset.eloChoice === 'owner' ? ownerChoices : opponentChoices;
-        const player = list.find(p => Number(p.eloId) === Number(button.dataset.playerId));
+        const player = list.find(row => Number(row.eloId) === Number(button.dataset.playerId));
         if (player) button.dataset.eloChoice === 'owner' ? useOwner(player) : lookupRival(player);
       }
       if (button.dataset.eloOpponent) {
-        const opponent = summary?.opponents.find(p => Number(p.id) === Number(button.dataset.eloOpponent));
-        if (opponent) { lookupRival(opponent); $('[data-elo-rival]').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+        const row = states.summary.result?.data.opponents.find(item => Number(item.id) === Number(button.dataset.eloOpponent));
+        if (row) lookupRival(row);
       }
-    });
-    refreshVisibleView = () => {
-      if (!alive() || !owner || !host.getClientRects().length) return;
-      loadSummary(); loadRecent();
-      if (rival && normalize($('[name="opponent"]').value) === normalize(rival.name)) lookupRival(rival);
     };
-    identify();
+    host.addEventListener('click', onClick);
+    $('[data-elo-source]').addEventListener('change', event => {
+      preference.source = event.target.value === 'local' ? 'local' : 'elo';
+      rivalState = null; rivalMessage = ''; rival = null; tickets.rival++; localQuery = ''; query = '';
+      $('[data-elo-search]').innerHTML = '';
+      if (preference.source === 'elo' && !owner) { unavailable = false; identify(); }
+      renderAll();
+    });
+    const controller = { refresh, destroy() { binding.destroy(); host.removeEventListener('click', onClick); for (const key of Object.keys(tickets)) tickets[key]++; } };
+    host.__eloController = controller;
+    renderAll(); identify();
+    return controller;
   }
-  return { mount, createClient, createDirectory, candidates, validPayload, escape };
+  function mountRecent(host, options = {}) {
+    if (!host) return { refresh() {}, destroy() {} };
+    host.__eloController?.destroy();
+    const client = clientFor(String(options.site || 'starlog'));
+    let result = null, loading = false, error = '', ticket = 0;
+    const binding = attachView(host, () => refresh(false)), alive = binding.alive;
+    host.classList.add('elo-recent-control');
+    host.innerHTML = '<p class="stat-note elo-sync-status" data-elo-recent-status role="status" aria-live="polite"></p>' +
+      '<button type="button" class="btn small" data-elo-refresh title="오늘 이미 확인했어도 직접 다시 조회해요">↻ 다시 확인</button>';
+    const status = host.querySelector('[data-elo-recent-status]'), button = host.querySelector('[data-elo-refresh]');
+    function emit() {
+      if (!alive()) return;
+      const data = result?.data;
+      status.textContent = (data ? '최도랑 연동 최근 ' + data.matches.length + '경기 · ' + checkedText(result) :
+        loading ? '최도랑 최근 50경기를 확인하고 있어요…' : error || '최근 경기 정보가 없어요.') +
+        (data?.warning ? ' · ' + data.warning : '') + ' · 한국시간 하루 1회 자동 확인';
+      status.classList.toggle('is-stale', Boolean(error || result?.stale));
+      button.disabled = loading;
+      const snapshot = { matches: data?.matches || [], fetchedAt: data?.fetchedAt || '', complete: data?.complete ?? null,
+        warning: data?.warning || '', stale: Boolean(result?.stale), loading, error };
+      Promise.resolve().then(() => { if (alive()) options.onData?.(snapshot); });
+    }
+    async function refresh(force = true) {
+      if (!alive()) return;
+      if (Number(options.fixedId) !== 443) { error = '최근 경기 목록은 최도랑 기준으로만 확인해요.'; emit(); return; }
+      const current = ++ticket;
+      result = client.peek('recent', 443) || result; loading = true; error = ''; emit();
+      try {
+        const next = await client.get('recent', 443, null, force);
+        if (!alive() || current !== ticket) return;
+        result = next; error = next.error ? '최근 경기 갱신을 확인하지 못했어요.' : '';
+      } catch (failure) { if (alive() && current === ticket) error = failure.message; }
+      finally { if (alive() && current === ticket) { loading = false; emit(); } }
+    }
+    const click = () => refresh(true);
+    button.addEventListener('click', click);
+    const controller = { refresh, destroy() { binding.destroy(); ticket++; button.removeEventListener('click', click); } };
+    host.__eloController = controller; refresh(false);
+    return controller;
+  }
+  return { mountStatistics, mountRecent, createClient, createDirectory, candidates, validPayload, escape, kstDay };
 });

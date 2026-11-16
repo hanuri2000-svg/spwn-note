@@ -1,9 +1,8 @@
 // This adapter reads ordinary public profile pages only. It never executes
 // upstream JavaScript or calls EloBoard's unavailable JSON endpoints.
 const ORIGIN = "https://eloboard.com";
-const TTL = 5 * 60_000;
 const STALE_TTL = 24 * 60 * 60_000;
-const FAILURE_BACKOFF = 30_000;
+const KST_OFFSET = 9 * 60 * 60_000;
 const MAX_ENTRIES = 100;
 const MAX_BYTES = 5_000_000;
 const PAGE_SIZE = 15;
@@ -37,6 +36,12 @@ function validDate(value) {
   return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) &&
     Number.isFinite(Date.parse(value + "T00:00:00Z")) &&
     new Date(value + "T00:00:00Z").toISOString().slice(0, 10) === value;
+}
+
+function koreanDate(timestamp) {
+  const value = typeof timestamp === "number" ? timestamp : Date.parse(timestamp);
+  if (!Number.isFinite(value)) invalid();
+  return new Date(value + KST_OFFSET).toISOString().slice(0, 10);
 }
 
 // Read a JSON value, not a JavaScript expression, from a React Flight frame.
@@ -354,9 +359,9 @@ function publicMatch(row, playerId) {
     eloChange: row.elo_delta == null ? null : (mine.result === "win" ? 1 : -1) * Math.abs(Number(row.elo_delta)) };
 }
 
-export async function collectPublicRecent(fetchPage, playerId, limit = 50) {
+async function collectPublicSnapshot(fetchPage, playerId, limit = 50) {
   const seen = new Map();
-  let previous = null, boundary = "", profile = null, complete = false, warning = null;
+  let previous = null, boundary = "", profile = null, complete = false, allMatches = false, warning = null;
   for (let page = 0; page < 7; page++) {
     const { player, rows } = parsePublicMatches(await fetchPage(`/players/${playerId}?tab=matches${boundary ? "&to=" + boundary : ""}`), playerId, boundary);
     if (profile) sameProfile(profile, player);
@@ -369,7 +374,12 @@ export async function collectPublicRecent(fetchPage, playerId, limit = 50) {
       if (seen.has(row.id) && canonical(seen.get(row.id)) !== canonical(row)) invalid("ELOBOARD 경기 내용이 조회 중 변경됐어. 잠시 후 다시 확인해줘.");
       if (!seen.has(row.id)) seen.set(row.id, row);
     }
-    if (seen.size >= limit || (rows.length < PAGE_SIZE && seen.size >= profile.games)) { complete = true; break; }
+    if (seen.size > profile.games) invalid("ELOBOARD 경기 목록과 통산 경기 수가 일치하지 않아.");
+    if (seen.size >= limit || seen.size === profile.games) {
+      complete = true;
+      allMatches = seen.size === profile.games && seen.size <= limit;
+      break;
+    }
     const oldest = rows.at(-1)?.played_on;
     if (rows.length < PAGE_SIZE) { warning = "공개 페이지에서 확인한 최근 경기만 표시하고 있어."; break; }
     if (boundary && oldest >= boundary) { warning = "같은 날짜의 경기 수가 공개 페이지 범위를 넘어 최근 경기 일부만 확인했어."; break; }
@@ -377,7 +387,46 @@ export async function collectPublicRecent(fetchPage, playerId, limit = 50) {
     boundary = oldest;
   }
   if (!complete && !warning) warning = "공개 페이지 조회 범위 안에서 확인한 최근 경기만 표시하고 있어.";
-  return { playerId, requested: limit, complete, warning, matches: [...seen.values()].slice(0, limit).map(row => publicMatch(row, playerId)) };
+  return { playerId, requested: limit, complete, allMatches, warning, matches: [...seen.values()].slice(0, limit).map(row => publicMatch(row, playerId)) };
+}
+
+export async function collectPublicRecent(fetchPage, playerId, limit = 50) {
+  const { allMatches, ...recent } = await collectPublicSnapshot(fetchPage, playerId, limit);
+  return recent;
+}
+
+// A bounded latest-match list proves a period only when it extends strictly
+// before that period's first day, or when the whole profile history is known.
+export function buildPublicActivity(snapshot) {
+  const asOfDate = koreanDate(snapshot.fetchedAt), current = asOfDate.slice(0, 7);
+  const rows = snapshot.matches;
+  if (!Array.isArray(rows) || rows.length > 50 || typeof snapshot.complete !== "boolean" ||
+      (snapshot.allMatches != null && typeof snapshot.allMatches !== "boolean") || !rows.every((row, index) =>
+        validDate(row.date) && row.date <= asOfDate && ["W", "L"].includes(row.result) &&
+        (!index || row.date <= rows[index - 1].date))) invalid();
+  const oldest = rows.at(-1)?.date || null, newest = rows[0]?.date || null;
+  // Pre-1.7 cached recent responses did not report full-history coverage.
+  const allMatches = snapshot.complete && snapshot.allMatches === true;
+  function period(from, to) {
+    const complete = snapshot.complete && (allMatches || (oldest !== null && oldest < from));
+    if (!complete) return { complete: false, wins: null, losses: null, games: null, winRate: null };
+    const matches = rows.filter(row => row.date >= from && row.date <= to);
+    const wins = matches.filter(row => row.result === "W").length;
+    return { complete: true, ...stats(wins, matches.length - wins) };
+  }
+  const months = [...new Set([current, ...rows.map(row => row.date.slice(0, 7))])].sort().reverse()
+    .map(month => ({ month, ...period(month + "-01", month === current ? asOfDate : month + "-31") }));
+  const result = rows[0]?.result || null;
+  let count = 0;
+  while (count < rows.length && rows[count].result === result) count++;
+  return {
+    playerId: snapshot.playerId, asOfDate,
+    coverage: { from: oldest, to: newest, complete: snapshot.complete, allMatches },
+    today: { date: asOfDate, ...period(asOfDate, asOfDate) },
+    currentMonth: { month: current, ...period(current + "-01", asOfDate) },
+    streak: { result, count, complete: count < rows.length || allMatches },
+    months,
+  };
 }
 
 async function fetchPublicHtml(path, fetchImpl) {
@@ -388,7 +437,7 @@ async function fetchPublicHtml(path, fetchImpl) {
     // Workers supports only follow/manual. Refuse redirects explicitly instead
     // of using redirect:error, which throws before sending a Worker request.
     const response = await fetchImpl(url.href, { signal: controller.signal, redirect: "manual",
-      headers: { "User-Agent": "spawn-note-elo-relay/1.6.2 (public profile statistics)", Accept: "text/html" } });
+      headers: { "User-Agent": "spawn-note-elo-relay/1.7.0 (public profile statistics)", Accept: "text/html" } });
     if (response.status >= 300 && response.status < 400) {
       await response.body?.cancel();
       throw new PublicSourceError("ELOBOARD 공개 페이지가 다른 주소로 이동해 지금 확인하지 못했어.", 502, "PUBLIC_SOURCE_REDIRECT");
@@ -422,6 +471,8 @@ export function createPublicAdapter({ fetchImpl = (...args) => fetch(...args), n
   }
   async function cached(key, load) {
     const cacheUrl = "https://eloboard-public-cache.invalid/v1/" + key;
+    const failureUrl = "https://eloboard-public-cache.invalid/v1/failure/" + key;
+    const day = koreanDate(now());
     let stored = memory.get(key);
     const cache = edgeCache();
     if (!stored && cache) {
@@ -434,18 +485,31 @@ export function createPublicAdapter({ fetchImpl = (...args) => fetch(...args), n
     const age = stored ? now() - Date.parse(stored.fetchedAt) : Infinity;
     if (age < 0 || age > STALE_TTL) stored = undefined;
     if (stored) retain(memory, key, stored);
-    if (stored && age < TTL) return stored;
+    if (stored && koreanDate(stored.fetchedAt) === day) return stored;
+    const usableStored = () => stored && now() >= Date.parse(stored.fetchedAt) &&
+      now() - Date.parse(stored.fetchedAt) <= STALE_TTL;
     const stale = () => ({ ...stored, stale: true,
       warning: "최신 조회에 실패해서 마지막으로 확인한 ELOBOARD 기록을 표시하고 있어." });
-    const failed = failures.get(key);
-    if (failed && now() - failed.at < FAILURE_BACKOFF) {
-      if (stored) return stale();
+    let failed = failures.get(key);
+    if (!failed && cache) {
+      try {
+        const response = await cache.match(failureUrl), entry = response && await response.json();
+        if (entry && Number.isFinite(entry.at) && typeof entry.message === "string" &&
+            Number.isInteger(entry.status) && entry.status >= 400 && entry.status <= 599) {
+          failed = { at: entry.at, error: new PublicSourceError(entry.message, entry.status, entry.code) };
+          retain(failures, key, failed);
+        }
+      } catch { /* A cache read failure must not manufacture an upstream failure. */ }
+    }
+    if (failed && failed.at <= now() && koreanDate(failed.at) === day) {
+      if (usableStored()) return stale();
       throw failed.error;
     }
     if (pending.has(key)) return pending.get(key);
     const task = (async () => {
       try {
-        const data = { schemaVersion: 1, source: "eloboard", fetchedAt: new Date(now()).toISOString(), stale: false, ...await load() };
+        const loaded = await load();
+        const data = { schemaVersion: 1, source: "eloboard", fetchedAt: new Date(now()).toISOString(), stale: false, ...loaded };
         if (stored?.complete === true && data.complete === false) throw new PublicSourceError(data.warning);
         retain(memory, key, data); failures.delete(key);
         if (cache) {
@@ -453,8 +517,17 @@ export function createPublicAdapter({ fetchImpl = (...args) => fetch(...args), n
         }
         return data;
       } catch (error) {
-        retain(failures, key, { at: now(), error });
-        if (stored) return stale();
+        const failure = { at: now(), error };
+        retain(failures, key, failure);
+        if (cache) {
+          try {
+            await cache.put(failureUrl, new Response(JSON.stringify({ at: failure.at,
+              status: error.status || 502, message: error.message || "ELOBOARD 공개 페이지를 확인하지 못했어.",
+              code: error.code || "PUBLIC_SOURCE_UNAVAILABLE" }),
+            { headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=86400" } }));
+          } catch { /* The bounded memory failure record is still available. */ }
+        }
+        if (usableStored()) return stale();
         throw error;
       } finally { pending.delete(key); }
     })();
@@ -462,6 +535,10 @@ export function createPublicAdapter({ fetchImpl = (...args) => fetch(...args), n
     return task;
   }
   const fetchPage = path => fetchPublicHtml(path, fetchImpl);
+  const recentSnapshot = playerId => cached(`recent/${playerId}/50`, async () => ({
+    sourceUrl: `${ORIGIN}/players/${playerId}?tab=matches`,
+    ...await collectPublicSnapshot(fetchPage, playerId, 50),
+  }));
   return {
     async handle(url) {
       const playerId = positiveId(url.searchParams.get("playerId"));
@@ -484,8 +561,16 @@ export function createPublicAdapter({ fetchImpl = (...args) => fetch(...args), n
         const raw = url.searchParams.get("limit") ?? "50";
         const limit = positiveId(raw, "경기 수");
         if (playerId !== 443 || limit > 50) throw new PublicSourceError("최근 경기 조회는 최도랑의 최대 50경기를 지원해.", 400, "RECENT_SCOPE_UNSUPPORTED");
-        return cached(`recent/${playerId}/${limit}`, async () => ({ sourceUrl: `${ORIGIN}/players/${playerId}?tab=matches`,
-          ...await collectPublicRecent(fetchPage, playerId, limit) }));
+        const { allMatches, ...snapshot } = await recentSnapshot(playerId);
+        const complete = snapshot.matches.length >= limit || snapshot.complete === true;
+        return { ...snapshot, requested: limit, complete,
+          warning: snapshot.stale ? snapshot.warning : complete ? null : snapshot.warning,
+          matches: snapshot.matches.slice(0, limit) };
+      }
+      if (route === "activity") {
+        const snapshot = await recentSnapshot(playerId);
+        const { schemaVersion, source, sourceUrl, fetchedAt, stale, warning } = snapshot;
+        return { schemaVersion, source, sourceUrl, fetchedAt, stale, warning, ...buildPublicActivity(snapshot) };
       }
       throw new PublicSourceError("not found", 404, "NOT_FOUND");
     },
