@@ -249,6 +249,8 @@ async def check_statistics(browser, origin, width):
             await check_records(state, width)
         else:
             await page.locator('#nav a[href="#records"]').click()
+            await page.locator('#records.active').wait_for(state='visible')
+            await page.wait_for_function("document.querySelectorAll('#recordsTable tbody tr').length === 1")
             assert await page.locator('#recordsTable tbody tr').count() == 1
             assert await page.locator('[data-record-source]').count() == 0
             assert not any('/recent?' in url for url in state['requests'])
