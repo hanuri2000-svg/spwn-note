@@ -8,6 +8,8 @@
   const API = 'https://spawn-note-elo-relay.hajimayo8130.workers.dev/api/elo/public';
   const DIRECTORY = 'https://hanuri2000-svg.github.io/star-match-manager/players.json';
   const PREFIX = 'starlog-public-elo:v1:';
+  const REFRESH_INTERVAL = 12 * 60 * 60 * 1000;
+  const recentEnough = (at, now, ttl = REFRESH_INTERVAL) => numberOK(at) && now >= at && now - at < ttl;
   const RACES = { P: '프로토스', T: '테란', Z: '저그', R: '랜덤 / 모름' };
   const TABS = [['opponent', '상대별'], ['map', '맵별'], ['race', '종족별'], ['build', '빌드별'], ['type', '유형별'], ['month', '월별']];
   const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -45,6 +47,7 @@
       new Set(data.matches.map(m => String(m.id))).size === data.matches.length;
     if (kind === 'activity') return Number(data.playerId) === Number(playerId) && dateOK(data.asOfDate) &&
       data.asOfDate === kstDay(Date.parse(data.fetchedAt)) &&
+      (data.recentResults == null || sequenceOK(data.recentResults, data.asOfDate)) &&
       data.coverage && typeof data.coverage.complete === 'boolean' && typeof data.coverage.allMatches === 'boolean' &&
       periodOK(data.today) && data.today.date === data.asOfDate &&
       periodOK(data.currentMonth) && data.currentMonth.month === data.asOfDate.slice(0, 7) &&
@@ -68,11 +71,11 @@
   function createClient(options = {}) {
     const fetcher = options.fetch || ((...args) => global.fetch(...args));
     const storage = storageOf(options), now = options.now || Date.now;
-    const daily = options.ttl == null, ttl = options.ttl;
+    const ttl = options.ttl ?? REFRESH_INTERVAL;
     const timeouts = { summary: 100000, activity: 220000, rival: 35000, recent: 220000 };
     const site = String(options.site || 'starlog'), base = options.base || API;
     const memory = new Map(), pending = new Map(), failures = new Map(), attempts = new Map();
-    const fresh = at => numberOK(at) && now() >= at && (daily ? kstDay(at) === kstDay(now()) : now() - at < ttl);
+    const fresh = at => recentEnough(at, now(), ttl);
     function key(kind, playerId, opponentId) {
       return PREFIX + encodeURIComponent(site) + ':' + Number(playerId) + ':' + kind + (opponentId ? ':' + Number(opponentId) : '');
     }
@@ -96,7 +99,7 @@
       const entry = valid(storedEntry) && (!valid(memoryEntry) || storedEntry.checkedAt >= memoryEntry.checkedAt) ? storedEntry : memoryEntry;
       if (!valid(entry)) return null;
       memory.set(cacheKey, entry);
-      const attempt = attemptFor(cacheKey), failedToday = attempt?.day === kstDay(now()) && attempt.status === 'failed';
+      const attempt = attemptFor(cacheKey), failedToday = fresh(attempt?.at) && attempt.status === 'failed';
       return { ...entry, cached: true, stale: Boolean(entry.data.stale) || !fresh(entry.checkedAt) || failedToday, error: failedToday };
     }
     function get(kind, playerId, opponentId, force = false) {
@@ -108,9 +111,9 @@
       const previous = peek(kind, playerId, opponentId);
       if (!force && previous && fresh(previous.checkedAt)) return Promise.resolve(previous);
       const attempt = attemptFor(cacheKey), failed = failures.get(cacheKey);
-      if (!force && ((daily && attempt?.day === kstDay(now())) || (!daily && failed && now() - failed.at < 30000))) {
+      if (!force && attempt && attempt.status !== 'success' && fresh(attempt.at)) {
         return previous ? Promise.resolve({ ...previous, stale: true, error: true }) :
-          Promise.reject(failed?.error || new Error('오늘 자동 확인을 시도했어요. 필요하면 다시 확인을 눌러 주세요.'));
+          Promise.reject(failed?.error || new Error('최근 12시간 이내 자동 확인을 시도했어요. 필요하면 다시 확인을 눌러 주세요.'));
       }
       recordAttempt(cacheKey, 'loading');
       const request = Promise.resolve().then(async () => {
@@ -130,8 +133,8 @@
             if (!validPayload(kind, body, playerId, opponentId)) throw new Error('선수 전적의 응답 형식을 확인하지 못했어요.');
             return body;
           })()]);
-          const entry = { site, kind, playerId: Number(playerId), opponentId: Number(opponentId || 0), checkedAt: now(), data };
-          memory.set(cacheKey, entry); failures.delete(cacheKey); recordAttempt(cacheKey, 'success');
+          const entry = { site, kind, playerId: Number(playerId), opponentId: Number(opponentId || 0), checkedAt: Math.min(now(), Date.parse(data.fetchedAt)), data };
+          memory.set(cacheKey, entry); failures.delete(cacheKey); recordAttempt(cacheKey, data.stale ? 'failed' : 'success');
           writeJSON(storage, cacheKey, entry);
           return { ...entry, cached: false, stale: Boolean(data.stale) };
         } catch (error) {
@@ -147,7 +150,7 @@
   }
   function createDirectory(options = {}) {
     const fetcher = options.fetch || ((...args) => global.fetch(...args)), storage = storageOf(options), now = options.now || Date.now;
-    const cacheKey = PREFIX + 'directory', attemptKey = cacheKey + ':attempt', daily = options.ttl == null;
+    const cacheKey = PREFIX + 'directory', attemptKey = cacheKey + ':attempt', ttl = options.ttl ?? REFRESH_INTERVAL;
     let pending = null, snapshot = null, checkedAt = 0, attempted = null;
     function get(force = false) {
       if (pending) return pending;
@@ -159,13 +162,13 @@
       const savedAttempt = readJSON(storage, attemptKey);
       if (savedAttempt && numberOK(savedAttempt.at) && dateOK(savedAttempt.day) &&
           (!attempted || savedAttempt.at >= attempted.at)) attempted = savedAttempt;
-      const fresh = now() >= checkedAt && (daily ? kstDay(checkedAt) === kstDay(now()) : now() - checkedAt < options.ttl);
+      const fresh = recentEnough(checkedAt, now(), ttl);
       if (!force && snapshot && fresh) return Promise.resolve({ ...snapshot,
-        stale: snapshot.stale || (attempted?.day === kstDay(now()) && attempted.status === 'failed') });
-      if (!force && daily && attempted?.day === kstDay(now())) {
+        stale: snapshot.stale || (recentEnough(attempted?.at, now(), ttl) && attempted.status === 'failed') });
+      if (!force && attempted?.status !== 'success' && recentEnough(attempted?.at, now(), ttl)) {
         const fallback = snapshot || readJSON(storage, 'starlog-player-directory-v1');
         if (Array.isArray(fallback?.players) && fallback.players.length) return Promise.resolve({ players: fallback.players, stale: true });
-        return Promise.reject(new Error('오늘 선수 목록을 확인하지 못했어요. 다시 확인을 눌러 주세요.'));
+        return Promise.reject(new Error('최근 선수 목록을 확인하지 못했어요. 다시 확인을 눌러 주세요.'));
       }
       attempted = { day: kstDay(now()), at: now(), status: 'loading' }; writeJSON(storage, attemptKey, attempted);
       pending = Promise.resolve().then(async () => {
@@ -219,6 +222,83 @@
     return [...groups].map(([value, rows]) => ({ key: value, label: key === 'race' ? RACES[value] || value : value, ...localStats(rows) }))
       .sort((a, b) => key === 'month' ? b.key.localeCompare(a.key) : b.games - a.games);
   }
+
+  // Only manually entered ladder games are additive to EloBoard aggregates.
+  // Manual sponsored/CK records can already exist upstream and are not added twice.
+  function ladderOnly(matches) {
+    return matches.filter(row => row.type === '래더' && row.source !== 'eloboard' && !row.eloRecordId && !row.eloMatchId);
+  }
+  function addStats(base, addition) {
+    if (!statsOK(base) || base.complete === false) return null;
+    const wins = base.wins + addition.wins, losses = base.losses + addition.losses, games = wins + losses;
+    return { ...base, wins, losses, games, winRate: games ? Math.round(wins * 1000 / games) / 10 : 0, ladder: addition };
+  }
+  function opponentMatch(row, opponent, directory = []) {
+    const found = candidates(directory, row.opponent);
+    if (found.length) return found.length === 1 && Number(found[0].eloId) === Number(opponent.eloId || opponent.id);
+    return normalize(row.opponent) === normalize(opponent.name);
+  }
+  function combineGroups(remoteRows, ladder, key, directory = [], available = true) {
+    const remote = remoteRows.map(row => ({ ...row, label: key === 'race' ? RACES[row.race] || row.label : row.label || row.name || row.month || row.key }));
+    const groupKey = row => key === 'opponent' && idOK(row.id) ? 'id:' + Number(row.id) : normalize(row.label);
+    const groups = new Map(remote.map(row => [groupKey(row), row]));
+    for (const local of localGroups(ladder, key).filter(row => row.games)) {
+      let id = null;
+      if (key === 'opponent') {
+        const found = candidates(directory, local.label);
+        if (found.length === 1) id = Number(found[0].eloId);
+        else if (!found.length) {
+          const exact = remote.filter(row => normalize(row.label) === normalize(local.label));
+          if (exact.length === 1 && idOK(exact[0].id)) id = Number(exact[0].id);
+        }
+      }
+      const target = id ? 'id:' + id : normalize(local.label), prior = groups.get(target);
+      const extra = localStats([]);
+      for (const field of ['wins', 'losses', 'games']) extra[field] = (prior?.ladder?.[field] || 0) + local[field];
+      extra.winRate = extra.games ? Math.round(extra.wins * 1000 / extra.games) / 10 : 0;
+      if (prior && statsOK(prior) && prior.complete !== false) {
+        const combined = addStats(prior, local);
+        groups.set(target, { ...combined, ladder: extra });
+      } else if (prior) groups.set(target, { ...prior, ladder: extra });
+      else if (!available || key === 'opponent' || key === 'month') {
+        // Rival lists are bounded, and a missing month is not proof of no games.
+        groups.set(target, { ...local, ...(id ? { id } : {}), complete: false,
+          wins: null, losses: null, games: null, winRate: null, ladder: extra });
+      } else groups.set(target, { ...local, ladder: extra });
+    }
+    return [...groups.values()].sort((a, b) => key === 'month' ? b.label.localeCompare(a.label) :
+      (b.games ?? b.ladder?.games ?? 0) - (a.games ?? a.ladder?.games ?? 0));
+  }
+  function sequenceOK(rows, asOfDate) {
+    return Array.isArray(rows) && rows.length <= 50 && rows.every((row, i) => row && idOK(row.id) &&
+      dateOK(row.date) && row.date <= asOfDate && ['W', 'L'].includes(row.result) && (!i || row.date <= rows[i - 1].date)) &&
+      new Set(rows.map(row => Number(row.id))).size === rows.length;
+  }
+  function combinedStreak(activity, ladder) {
+    if (!ladder.length) return activity?.streak || { result: null, count: 0, complete: false };
+    if (!activity || !sequenceOK(activity.recentResults, activity.asOfDate)) return { result: null, count: 0, complete: false, ambiguous: true };
+    const official = activity.recentResults;
+    const full = activity.coverage?.allMatches === true;
+    const boundary = official.at(-1)?.date;
+    if (!full && !boundary) return { result: null, count: 0, complete: false };
+    const locals = ladder.filter(row => full || row.date >= boundary).slice()
+      .sort((a, b) => b.date.localeCompare(a.date) || Number(b.created || 0) - Number(a.created || 0));
+    const days = [...new Set([...official, ...locals].map(row => row.date))].sort().reverse();
+    let result = null, count = 0;
+    for (const day of days) {
+      const a = official.filter(row => row.date === day), b = locals.filter(row => row.date === day);
+      // The source exposes dates, not times. Do not guess an interleaving on a mixed day.
+      if (a.length && b.length && new Set([...a, ...b].map(row => row.result)).size > 1)
+        return { result, count, complete: false, ambiguous: true };
+      for (const row of [...a, ...b]) {
+        if (!result) result = row.result;
+        if (row.result !== result) return { result, count, complete: true };
+        count++;
+      }
+    }
+    return { result, count, complete: full };
+  }
+
   function metric(key, title, value, sub, icon) {
     return '<div class="metric" data-elo-metric="' + key + '"><span class="metric-icon">' + icon +
       '</span><div class="metric-title">' + title + '</div><strong>' + value + '</strong><small>' + escape(sub) + '</small></div>';
@@ -232,7 +312,8 @@
       rows.map(row => {
         const known = row.complete !== false && statsOK(row);
         const label = escape(row.label || row.name || row.month || row.key || '미입력');
-        return '<tr><td>' + (search && idOK(row.id) ? '<button type="button" class="icon-btn" data-elo-opponent="' + Number(row.id) + '">' + label + '</button>' : label) +
+        const ladderHint = row.ladder?.games ? '<small style="display:block;font-size:12px;opacity:.85">래더 ' + formatNumber(row.ladder.games) + '판 · ' + row.ladder.wins + '승 ' + row.ladder.losses + '패' + (known ? ' 포함' : ' 확인 · 연동 합계 미확인') + '</small>' : '';
+        return '<tr><td>' + (search && idOK(row.id) ? '<button type="button" class="icon-btn" data-elo-opponent="' + Number(row.id) + '">' + label + '</button>' : label) + ladderHint +
           '</td><td>' + (known ? formatNumber(row.games) + '판' : '—') + '</td><td>' + (known ? formatNumber(row.wins) : '—') +
           '</td><td>' + (known ? formatNumber(row.losses) : '—') + '</td><td>' + (known ? rate(row) : '확인 범위 부족') +
           '</td><td>' + (known ? '<div class="bar-track"><div class="bar-fill" style="width:' + Math.max(0, Math.min(100, row.winRate)) + '%"></div></div>' : '—') + '</td></tr>';
@@ -270,14 +351,17 @@
     };
     global.addEventListener('focus', refreshVisible);
     global.document.addEventListener('visibilitychange', refreshVisible);
+    const clock = global.setInterval?.(refreshVisible, 60_000);
+    clock?.unref?.();
   }
   function mountStatistics(host, options = {}) {
     if (!host) return { refresh() {}, destroy() {} };
     host.__eloController?.destroy();
     const site = String(options.site || 'starlog'), name = String(options.name || '').trim(), client = clientFor(site);
     const matches = (Array.isArray(options.matches) ? options.matches : []).filter(row => row && ['W', 'L'].includes(row.result) && dateOK(row.date));
+    const ladder = ladderOnly(matches);
     const preferenceKey = site + '|' + normalize(name) + '|' + String(options.race || '');
-    const preference = preferences.get(preferenceKey) || { source: name || options.fixedId ? 'elo' : 'local', tab: 'race' };
+    const preference = preferences.get(preferenceKey) || { tab: 'race' };
     preferences.set(preferenceKey, preference);
     let owner = null, directory = null, ownerChoices = [], opponentChoices = [], unavailable = false, identityMessage = '';
     const states = { summary: { result: null, loading: false, error: '' }, activity: { result: null, loading: false, error: '' } };
@@ -285,12 +369,11 @@
     let rival = null, rivalState = null, rivalMessage = '', query = '', localQuery = '';
     const binding = attachView(host, () => refresh(false)), alive = binding.alive;
     const $ = selector => host.querySelector(selector);
-    const activeSource = () => preference.source === 'elo' && !unavailable ? 'elo' : 'local';
+    const activeSource = () => (name || options.fixedId) && !unavailable ? 'elo' : 'local';
     host.classList.add('elo-statistics');
-    host.innerHTML = '<div class="section-top"><h2>나의 통계 ✧</h2><span class="date-label">' + kstDay().replaceAll('-', '.') + ' 기준</span></div><div class="elo-stat-source"><label>전적 기준 <select data-elo-source aria-label="통계 전적 기준">' +
-      '<option value="elo">연동 전적 · ELOBOARD</option><option value="local">직접 기록 · 래더 포함</option></select></label>' +
-      '<button type="button" class="btn small" data-elo-refresh title="오늘 이미 확인했어도 직접 다시 조회해요">↻ 다시 확인</button>' +
-      '<span class="date-label">한국시간 하루 1회 자동 확인</span></div><p class="stat-note elo-sync-status" data-elo-status role="status" aria-live="polite"></p>' +
+    host.innerHTML = '<div class="section-top"><h2>나의 통계 ✧</h2><span class="date-label">' + kstDay().replaceAll('-', '.') + ' 기준</span></div><div class="elo-stat-source"><span data-elo-combined-label>연동 전적 + 직접 기록한 래더</span>' +
+      '<button type="button" class="btn small" data-elo-refresh title="저장된 전적을 다시 확인해요. 원본 갱신은 12시간 간격이에요">↻ 다시 확인</button>' +
+      '<span class="date-label">12시간 간격 자동 확인</span></div><p class="stat-note elo-sync-status" data-elo-status role="status" aria-live="polite"></p>' +
       '<div data-elo-owner></div><div class="metrics" data-elo-metrics></div>' +
       '<div class="section-top"><h2>상세 전적</h2><span class="date-label" data-elo-detail-status></span></div>' +
       '<div class="segmented" role="group" aria-label="상세 전적 구분">' + TABS.map(([key, label]) =>
@@ -300,7 +383,7 @@
     function renderStatus() {
       if (!alive()) return;
       const remote = activeSource() === 'elo';
-      $('[data-elo-source]').value = remote ? 'elo' : 'local';
+      $('[data-elo-combined-label]').textContent = remote ? '연동 전적 + 직접 기록한 래더 ' + ladder.length + '판' : '직접 기록 전체 · 래더 포함';
       let text = identityMessage;
       if (!text && remote) {
         const parts = [['summary', '통산'], ['activity', '기간']].map(([key, label]) => {
@@ -328,21 +411,26 @@
         totalNote = total.wins + '승 ' + total.losses + '패 · 직접 기록';
       } else {
         const activity = states.activity.result?.data;
-        if (activity?.today.complete && activity.today.date === date) todayStats = activity.today;
-        if (activity?.currentMonth.complete && activity.currentMonth.month === month) monthStats = activity.currentMonth;
-        total = states.summary.result?.data.overall;
-        if (activity?.streak) streak = activity.streak;
-        todayNote = todayStats ? date + ' · 연동 전적' : states.activity.loading ? '전적 확인 중' : '오늘 전체 범위 확인 불가';
+        if (activity?.today.complete && activity.today.date === date) todayStats = addStats(activity.today, localStats(ladder.filter(row => row.date === date)));
+        if (activity?.currentMonth.complete && activity.currentMonth.month === month) monthStats = addStats(activity.currentMonth, localStats(ladder.filter(row => row.date.startsWith(month))));
+        total = addStats(states.summary.result?.data.overall, localStats(ladder));
+        streak = combinedStreak(activity, ladder);
+        todayNote = todayStats ? date + ' · 래더 포함' : states.activity.loading ? '전적 확인 중' : '오늘 전체 범위 확인 불가';
         monthNote = monthStats ? formatNumber(monthStats.games) + '경기 · ' + monthStats.wins + '승 ' + monthStats.losses + '패' :
           states.activity.loading ? '전적 확인 중' : '이번 달 전체 범위 확인 불가';
-        totalNote = total ? total.wins + '승 ' + total.losses + '패 · ELOBOARD 통산' : states.summary.loading ? '전적 확인 중' : '통산 전적 확인 불가';
+        totalNote = total ? total.wins + '승 ' + total.losses + '패 · 래더 ' + ladder.length + '판 포함' : states.summary.loading ? '전적 확인 중' : '통산 전적 확인 불가';
+      }
+      if (activeSource() === 'elo') {
+        if (!todayStats) todayNote += ' · 래더 ' + localStats(ladder.filter(row => row.date === date)).games + '판 확인';
+        if (!monthStats) monthNote += ' · 래더 ' + localStats(ladder.filter(row => row.date.startsWith(month))).games + '판 확인';
+        if (!total) totalNote += ' · 래더 ' + ladder.length + '판 확인';
       }
       const streakValue = streak.count && streak.result ? (streak.complete ? '' : '<small>최소 </small>') + formatNumber(streak.count) +
         '<small>' + (streak.result === 'W' ? '연승' : '연패') + '</small>' : streak.complete ? '0<small>경기</small>' : '—';
       $('[data-elo-metrics]').innerHTML =
         metric('today', '오늘의 전적', todayStats ? recordText(todayStats) : '—', todayNote, '🎮') +
         metric('month', '이번 달 승률', monthStats ? rate(monthStats) : '—', monthNote, '🌷') +
-        metric('streak', '현재 연속 기록', streakValue, streak.complete ? '최근 확인된 경기부터 집계했어요' : '확인된 경기 범위 기준', '✨') +
+        metric('streak', '현재 연속 기록', streakValue, streak.ambiguous ? '같은 날 경기 순서 미확인 · 래더 포함' : streak.complete ? '최근 확인된 경기부터 집계 · 래더 포함' : '확인된 경기 범위 기준 · 래더 포함', '✨') +
         metric('overall', '전체 경기', total ? formatNumber(total.games) + '<small>판</small>' : '—', totalNote, '📖');
     }
     function fillNames() {
@@ -362,14 +450,20 @@
       if (activeSource() !== 'elo') { resultNode.innerHTML = ''; status.textContent = localQuery ? '직접 기록에서 검색한 상대 전적이에요.' : '직접 기록에 저장된 상대 이름을 검색해요.'; return; }
       status.textContent = rivalState ? checkedText(rivalState) : rivalMessage || '상대 이름을 검색하면 전체 기간 맞대결을 확인해요.';
       status.classList.toggle('is-stale', Boolean(rivalState?.stale));
-      if (!rivalState) { resultNode.innerHTML = ''; return; }
-      const data = rivalState.data, h = data.headToHead;
+      if (!rivalState) {
+        const localRows = ladder.filter(row => rival ? opponentMatch(row, rival, directory?.players) : normalize(row.opponent) === normalize(query));
+        const local = localStats(localRows);
+        resultNode.innerHTML = local.games ? '<div class="elo-rival-summary">직접 래더 ' + local.games + '경기 · ' + local.wins + '승 ' + local.losses + '패 · 연동 맞대결 합계 미확인</div>' : '';
+        return;
+      }
+      const data = rivalState.data, opponentLadder = ladder.filter(row => opponentMatch(row, data.opponent, directory?.players));
+      const h = addStats(data.headToHead, localStats(opponentLadder));
       resultNode.innerHTML = '<div class="elo-rival-summary"><b>' + escape(data.player.name) + ' vs ' + escape(data.opponent.name) +
         '</b><span>' + formatNumber(h.games) + '경기 · ' + formatNumber(h.wins) + '승 ' + formatNumber(h.losses) + '패 · ' + rate(h) +
-        '</span><small>' + escape([h.from, h.to].filter(Boolean).join(' ~ ')) + '</small></div>' +
-        ((data.maps.length || data.types.length) ? '<details class="elo-rival-details"><summary>맞대결 맵·유형별 전적</summary>' +
-          rowTable(data.maps.map(row => ({ ...row, label: row.label || row.name }))) +
-          rowTable(data.types.map(row => ({ ...row, label: row.label || row.key }))) + '</details>' : '');
+        '</span><small>' + escape('연동 ' + [h.from, h.to].filter(Boolean).join(' ~ ') + ' · 직접 래더 ' + opponentLadder.length + '판 포함') + '</small></div>' +
+        ((data.maps.length || data.types.length || opponentLadder.length) ? '<details class="elo-rival-details"><summary>맞대결 맵·유형별 전적</summary>' +
+          rowTable(combineGroups(data.maps, opponentLadder, 'map', directory?.players)) +
+          rowTable(combineGroups(data.types, opponentLadder, 'type', directory?.players)) + '</details>' : '');
     }
     function ensureSearch() {
       const target = $('[data-elo-search]');
@@ -401,22 +495,22 @@
           '승률은 직접 기록의 승리 ÷ 전체 경기로 계산해요. 연동 전적과 중복 합산하지 않아요.';
         message = '직접 기록한 경기가 없어요.';
       } else if (key === 'month') {
-        rows = (states.activity.result?.data.months || []).map(row => ({ ...row, label: row.month }));
-        caption = 'ELOBOARD · 확인된 월별 범위';
+        rows = combineGroups((states.activity.result?.data.months || []).map(row => ({ ...row, label: row.month })), ladder, 'month', directory?.players, Boolean(states.activity.result));
+        caption = '연동 전적 + 래더 · 확인된 월별 범위';
         message = states.activity.loading ? '월별 전적을 확인하고 있어요…' : '월별 전적을 확인하지 못했어요.';
         note = '해당 달 전체를 확인한 경우에만 월 전체 전적을 표시해요. 확인 범위가 부족한 달은 —로 표시해요.';
       } else {
         const summary = states.summary.result?.data;
         rows = summary?.[{ opponent: 'opponents', map: 'maps', race: 'races', type: 'types' }[key]] || [];
-        rows = rows.map(row => ({ ...row, label: key === 'race' ? RACES[row.race] || row.label : row.label || row.name || row.key }));
-        caption = 'ELOBOARD · 원본 집계 기준';
+        rows = combineGroups(rows, ladder, key, directory?.players, Boolean(summary));
+        caption = '연동 전적 + 직접 기록한 래더';
         message = states.summary.loading ? '전적을 확인하고 있어요…' : '연동 전적을 확인하지 못했어요.';
         note = key === 'opponent' ? '현재 조회된 상대 목록이에요. 목록에 없는 선수도 위에서 이름으로 검색할 수 있어요.' :
           '원본에서 분류된 경기의 전적이에요. 분류별 합계가 통산 경기 수와 다를 수 있어요.';
       }
       $('[data-elo-detail-status]').textContent = caption;
       $('[data-elo-table]').innerHTML = rowTable(rows, { search: !local && key === 'opponent', empty: message });
-      $('[data-elo-footnote]').textContent = note;
+      $('[data-elo-footnote]').textContent = note + (activeSource() === 'elo' && key !== 'build' ? ' 직접 기록한 래더는 함께 합산하며, 수동 스폰·CK 등은 중복 방지를 위해 다시 더하지 않아요.' : '');
     }
     function renderAll() { renderStatus(); renderMetrics(); renderDetail(); }
     async function load(kind, force = false) {
@@ -473,6 +567,7 @@
       owner = { ...player, eloId: Number(player.eloId) }; unavailable = false; identityMessage = '';
       $('[data-elo-owner]').replaceChildren();
       load('summary', force); load('activity', force);
+      if (!directory) getDirectory(force).then(() => { if (alive()) renderAll(); }).catch(() => {});
     }
     async function identify(force = false) {
       const ticket = ++tickets.owner;
@@ -517,13 +612,6 @@
       }
     };
     host.addEventListener('click', onClick);
-    $('[data-elo-source]').addEventListener('change', event => {
-      preference.source = event.target.value === 'local' ? 'local' : 'elo';
-      rivalState = null; rivalMessage = ''; rival = null; tickets.rival++; localQuery = ''; query = '';
-      $('[data-elo-search]').innerHTML = '';
-      if (preference.source === 'elo' && !owner) { unavailable = false; identify(); }
-      renderAll();
-    });
     const controller = { refresh, destroy() { binding.destroy(); host.removeEventListener('click', onClick); for (const key of Object.keys(tickets)) tickets[key]++; } };
     host.__eloController = controller;
     renderAll(); identify();
@@ -537,14 +625,14 @@
     const binding = attachView(host, () => refresh(false)), alive = binding.alive;
     host.classList.add('elo-recent-control');
     host.innerHTML = '<p class="stat-note elo-sync-status" data-elo-recent-status role="status" aria-live="polite"></p>' +
-      '<button type="button" class="btn small" data-elo-refresh title="오늘 이미 확인했어도 직접 다시 조회해요">↻ 다시 확인</button>';
+      '<button type="button" class="btn small" data-elo-refresh title="저장된 전적을 다시 확인해요. 원본 갱신은 12시간 간격이에요">↻ 다시 확인</button>';
     const status = host.querySelector('[data-elo-recent-status]'), button = host.querySelector('[data-elo-refresh]');
     function emit() {
       if (!alive()) return;
       const data = result?.data;
       status.textContent = (data ? '최도랑 연동 최근 ' + data.matches.length + '경기 · ' + checkedText(result) :
         loading ? '최도랑 최근 50경기를 확인하고 있어요…' : error || '최근 경기 정보가 없어요.') +
-        (data?.warning ? ' · ' + data.warning : '') + ' · 한국시간 하루 1회 자동 확인';
+        (data?.warning ? ' · ' + data.warning : '') + ' · 12시간 간격 자동 확인';
       status.classList.toggle('is-stale', Boolean(error || result?.stale));
       button.disabled = loading;
       const snapshot = { matches: data?.matches || [], fetchedAt: data?.fetchedAt || '', complete: data?.complete ?? null,
@@ -569,5 +657,5 @@
     host.__eloController = controller; refresh(false);
     return controller;
   }
-  return { mountStatistics, mountRecent, createClient, createDirectory, candidates, validPayload, escape, kstDay };
+  return { mountStatistics, mountRecent, createClient, createDirectory, candidates, validPayload, escape, kstDay, REFRESH_INTERVAL, addStats, combineGroups, ladderOnly, combinedStreak, opponentMatch };
 });

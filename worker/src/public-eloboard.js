@@ -1,6 +1,7 @@
 // This adapter reads ordinary public profile pages only. It never executes
 // upstream JavaScript or calls EloBoard's unavailable JSON endpoints.
 const ORIGIN = "https://eloboard.com";
+const REFRESH_INTERVAL = 12 * 60 * 60_000;
 const STALE_TTL = 24 * 60 * 60_000;
 const KST_OFFSET = 9 * 60 * 60_000;
 const MAX_ENTRIES = 100;
@@ -421,6 +422,7 @@ export function buildPublicActivity(snapshot) {
   while (count < rows.length && rows[count].result === result) count++;
   return {
     playerId: snapshot.playerId, asOfDate,
+    recentResults: rows.map(row => ({ id: row.id, date: row.date, result: row.result })),
     coverage: { from: oldest, to: newest, complete: snapshot.complete, allMatches },
     today: { date: asOfDate, ...period(asOfDate, asOfDate) },
     currentMonth: { month: current, ...period(current + "-01", asOfDate) },
@@ -437,7 +439,7 @@ async function fetchPublicHtml(path, fetchImpl) {
     // Workers supports only follow/manual. Refuse redirects explicitly instead
     // of using redirect:error, which throws before sending a Worker request.
     const response = await fetchImpl(url.href, { signal: controller.signal, redirect: "manual",
-      headers: { "User-Agent": "spawn-note-elo-relay/1.7.0 (public profile statistics)", Accept: "text/html" } });
+      headers: { "User-Agent": "spawn-note-elo-relay/1.7.1 (public profile statistics)", Accept: "text/html" } });
     if (response.status >= 300 && response.status < 400) {
       await response.body?.cancel();
       throw new PublicSourceError("ELOBOARD 공개 페이지가 다른 주소로 이동해 지금 확인하지 못했어.", 502, "PUBLIC_SOURCE_REDIRECT");
@@ -472,7 +474,6 @@ export function createPublicAdapter({ fetchImpl = (...args) => fetch(...args), n
   async function cached(key, load) {
     const cacheUrl = "https://eloboard-public-cache.invalid/v1/" + key;
     const failureUrl = "https://eloboard-public-cache.invalid/v1/failure/" + key;
-    const day = koreanDate(now());
     let stored = memory.get(key);
     const cache = edgeCache();
     if (!stored && cache) {
@@ -485,7 +486,7 @@ export function createPublicAdapter({ fetchImpl = (...args) => fetch(...args), n
     const age = stored ? now() - Date.parse(stored.fetchedAt) : Infinity;
     if (age < 0 || age > STALE_TTL) stored = undefined;
     if (stored) retain(memory, key, stored);
-    if (stored && koreanDate(stored.fetchedAt) === day) return stored;
+    if (stored && now() - Date.parse(stored.fetchedAt) < REFRESH_INTERVAL) return stored;
     const usableStored = () => stored && now() >= Date.parse(stored.fetchedAt) &&
       now() - Date.parse(stored.fetchedAt) <= STALE_TTL;
     const stale = () => ({ ...stored, stale: true,
@@ -501,7 +502,7 @@ export function createPublicAdapter({ fetchImpl = (...args) => fetch(...args), n
         }
       } catch { /* A cache read failure must not manufacture an upstream failure. */ }
     }
-    if (failed && failed.at <= now() && koreanDate(failed.at) === day) {
+    if (failed && failed.at <= now() && now() - failed.at < REFRESH_INTERVAL) {
       if (usableStored()) return stale();
       throw failed.error;
     }

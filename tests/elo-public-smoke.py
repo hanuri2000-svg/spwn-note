@@ -1,5 +1,6 @@
 """Exercise the existing statistics and records views with isolated, mocked data."""
 import asyncio
+import os
 from datetime import datetime, timedelta, timezone
 import functools
 import http.server
@@ -108,7 +109,7 @@ async def prepare(browser, origin, width, harness=False, delay_owner=False, dela
     source = (APP / 'app.js').read_text()
     key = re.search(r"const KEY='([^']+)'", source).group(1)
     raw = json.dumps(journal(), ensure_ascii=False)
-    await context.add_init_script('localStorage.setItem(' + json.dumps(key) + ',' + json.dumps(raw) + ');')
+    await context.add_init_script('if(localStorage.getItem(' + json.dumps(key) + ')===null)localStorage.setItem(' + json.dumps(key) + ',' + json.dumps(raw) + ');')
     if directory_fail:
         old = json.dumps({'players': [PLAYERS[0]]}, ensure_ascii=False)
         await context.add_init_script('localStorage.setItem("starlog-player-directory-v1",' + json.dumps(old) + ');')
@@ -168,7 +169,7 @@ async def prepare(browser, origin, width, harness=False, delay_owner=False, dela
     return state
 
 
-async def wait_total(page, total=38):
+async def wait_total(page, total=39):
     await page.wait_for_function("value => document.querySelector('[data-elo-metrics]')?.textContent.includes(String(value))", arg=total)
 
 
@@ -184,7 +185,8 @@ async def check_records(state, width):
     assert await page.locator('#records #recordsTable').count() == 1
     assert '50경기' in await page.locator('#resultCount').inner_text()
     assert '일부 날짜' in await page.locator('#recordSyncStatus').inner_text()
-    assert await page.locator('#recordsTable button').count() == 0
+    assert await page.locator('#recordsTable [data-elo-note]').count() == 50
+    assert await page.locator('#recordsTable button.danger').count() == 0
     geometry = await page.evaluate("""() => ({
       search:document.getElementById('search').getBoundingClientRect().bottom,
       filter:document.getElementById('recordsTypeFilter').getBoundingClientRect().bottom,
@@ -239,9 +241,8 @@ async def check_statistics(browser, origin, width):
         await page.locator('[data-elo-tab="build"]').click()
         assert '나의 빌드' in await page.locator('[data-elo-table]').inner_text()
         assert '직접' in await page.locator('[data-elo-detail-status]').inner_text()
-        await page.locator('[data-elo-source]').select_option('local')
-        assert '1' in await page.locator('[data-elo-metrics]').inner_text()
-        await page.locator('[data-elo-source]').select_option('elo')
+        assert await page.locator('[data-elo-source]').count() == 0
+        assert '래더 1판' in await page.locator('[data-elo-combined-label]').inner_text()
         await wait_total(page)
         assert len([url for url in state['requests'] if '/summary?' in url]) == 1
         assert len([url for url in state['requests'] if '/activity?' in url]) == 1
@@ -357,7 +358,7 @@ async def main():
     origin = 'http://127.0.0.1:' + str(server.server_address[1])
     try:
         async with async_playwright() as playwright:
-            browser = await playwright.chromium.launch()
+            browser = await playwright.chromium.launch(executable_path=os.environ.get('PLAYWRIGHT_CHROMIUM_EXECUTABLE'))
             try:
                 for width in [1440, 390]:
                     await check_statistics(browser, origin, width)

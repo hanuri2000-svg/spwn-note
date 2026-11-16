@@ -473,7 +473,7 @@ export default {
     const origin = corsOrigin(request, env);
     if (request.method === "OPTIONS") return json({ ok: true }, 200, origin);
     if (request.method !== "GET") return json({ error: "method not allowed" }, 405, origin);
-    if (url.pathname === "/health") return json({ ok: true, version: "1.7.0" }, 200, origin);
+    if (url.pathname === "/health") return json({ ok: true, version: "1.7.1" }, 200, origin);
     try {
       if (["/api/elo/public/summary", "/api/elo/public/rival", "/api/elo/public/recent", "/api/elo/public/activity"].includes(url.pathname)) {
         return json(await publicElo.handle(url), 200, origin);
