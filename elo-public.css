@@ -1,3 +1,50 @@
-.elo-public{margin:28px 0 34px;padding:24px;border:1px solid #dfd3ef;border-radius:22px;background:linear-gradient(125deg,#fffdfd,#f8f4ff);color:#4e405e;box-shadow:0 6px 22px #6f548009;min-width:0}
-.elo-public [hidden]{display:none!important}.elo-public-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}.elo-public-heading h2{font-size:23px;line-height:1.4;margin:5px 0 0}.elo-public-label{font-size:10px;letter-spacing:1.8px;font-weight:800;color:#9270b7}.elo-public-scope{font-size:12px;line-height:1.8;color:#87758f;margin:12px 0}.elo-public-status{font-size:12px;line-height:1.8;color:#887494;overflow-wrap:anywhere;margin:10px 0}.elo-public-status.is-stale,.elo-public-warning{color:#946d3b;background:#fff8e9;border-radius:9px;padding:10px 12px}.elo-public-warning{font-size:12px;line-height:1.8}.elo-public-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:20px 0 14px}.elo-public-metric{padding:16px 13px;border:1px solid #e7dff0;border-radius:15px;background:#ffffffd9;min-width:0}.elo-public-metric>span{display:block;color:#8b749c;font-size:12px;margin-bottom:9px}.elo-public-metric>strong{display:block;font-size:23px;line-height:1.4;font-weight:800;font-variant-numeric:tabular-nums}.elo-public-metric>strong small{font-size:12px;font-weight:500;margin-left:2px;margin-right:5px}.elo-public-metric>small{display:block;margin-top:7px;color:#94849e;font-size:10px}.elo-public-races{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid #e7dff0;border-radius:14px;overflow:hidden;background:#ffffff9c}.elo-public-races>div{display:grid;gap:5px;padding:12px;text-align:center}.elo-public-races>div+div{border-left:1px solid #eee5f5}.elo-public-races span{font-size:11px;color:#8b749c}.elo-public-races b{font-size:14px}.elo-public-races small{font-size:11px;color:#8b749c}.elo-public-details{border-top:1px solid #e5dbed;margin-top:17px;padding-top:13px}.elo-public-details summary{cursor:pointer;font-size:13px;font-weight:700;color:#73548f;line-height:1.8;padding:4px 0;list-style-position:inside}.elo-public-breakdowns{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px;min-width:0}.elo-public h3{font-size:17px;margin:0 0 14px}.elo-public h4{font-size:13px;margin:12px 0;line-height:1.7}.elo-public h4 small{font-size:10px;color:#9a87a6;font-weight:400;margin-left:6px}.elo-public-table{overflow:auto;max-height:340px;border:1px solid #e9e1f1;border-radius:10px;background:white;min-width:0}.elo-public table{border-collapse:collapse;width:100%;font-size:12px}.elo-public th,.elo-public td{padding:10px 12px;white-space:nowrap;text-align:left;border-bottom:1px solid #f0eaf5;color:#604d70}.elo-public th{background:#f2edf9;font-size:10px;position:sticky;top:0;z-index:1}.elo-public tbody tr:last-child td{border-bottom:0}.elo-public-empty{font-size:12px;color:#9a8aa4;line-height:1.8;padding:10px 0}.elo-public-opponents{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.elo-public-opponents button{border:1px solid #e8def0;background:#fff;border-radius:10px;padding:10px;color:#685277;text-align:left;cursor:pointer}.elo-public-opponents b,.elo-public-opponents span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.elo-public-opponents b{font-size:12px}.elo-public-opponents span{font-size:10px;margin-top:4px;color:#9b86a8}.elo-public-rival{border-top:1px solid #e5dbed;margin-top:22px;padding-top:22px}.elo-public-rival form{display:flex;gap:9px;align-items:end}.elo-public-rival label{display:block;flex:1;min-width:0;font-size:11px;color:#8b749c}.elo-public-rival input{display:block;width:100%;box-sizing:border-box;margin-top:7px;min-height:42px;border:1px solid #ded2eb;border-radius:11px;background:#fff;color:#54405f;padding:10px 12px;font:inherit;font-size:13px}.elo-public-rival form button{flex-shrink:0;min-height:42px;margin:0}.elo-public-choices{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.elo-public [data-elo-choices]>p,.elo-public [data-elo-owner]>p{font-size:12px;line-height:1.8}.elo-public-versus{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px;padding:20px 12px 6px;text-align:center}.elo-public-versus>span{font-size:15px;font-weight:700;overflow-wrap:anywhere}.elo-public-versus>strong{display:flex;gap:18px;align-items:center;font-size:32px;white-space:nowrap;font-variant-numeric:tabular-nums}.elo-public-versus i{font-size:22px;font-weight:400;font-style:normal;color:#b49fc2}.elo-public-versus-note{font-size:12px;line-height:1.9;text-align:center;color:#927b9e;margin:5px 0 10px}.elo-public-result{display:inline-block;border-radius:6px;padding:3px 9px;font-size:11px;font-weight:700}.elo-public-result.is-win{background:#e4f3ed;color:#4a8971}.elo-public-result.is-loss{background:#fae7ed;color:#b66b85}.elo-public-source{display:block;margin-top:18px;font-size:11px;text-align:right;color:#9270b1;text-decoration:none}.elo-public button:focus-visible,.elo-public summary:focus-visible,.elo-public a:focus-visible{outline:3px solid #bea2df;outline-offset:3px}
-@media(max-width:700px){.elo-public{padding:17px 14px;margin:22px 0 28px;border-radius:17px}.elo-public-heading{gap:8px}.elo-public-heading h2{font-size:20px}.elo-public-heading .btn{font-size:10px;padding:8px 10px;white-space:nowrap}.elo-public-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:16px}.elo-public-metric{padding:13px 11px}.elo-public-metric>strong{font-size:22px}.elo-public-races>div{padding:11px 5px}.elo-public-races b{font-size:12px}.elo-public-breakdowns{grid-template-columns:1fr;gap:8px}.elo-public-opponents{grid-template-columns:repeat(2,minmax(0,1fr))}.elo-public-rival form button{font-size:11px;padding:10px 12px}.elo-public-versus{gap:8px;padding-left:0;padding-right:0}.elo-public-versus>span{font-size:13px}.elo-public-versus>strong{gap:11px;font-size:28px}.elo-public th,.elo-public td{padding:9px 10px}.elo-public-table{max-height:300px}.elo-public-scope{font-size:11px}}
+/* The existing journal metrics, segmented tabs, and table panel remain the layout. */
+.elo-statistics{min-width:0}
+.elo-statistics [hidden],.elo-recent-control[hidden]{display:none!important}
+.elo-stat-source{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 8px}
+.elo-stat-source label{display:flex;align-items:center;gap:8px;font-size:12px;line-height:1.5;margin:0}
+.elo-stat-source select{width:auto;max-width:100%;padding:7px 10px;border:1px solid var(--line,#e5dced);border-radius:10px;background:var(--card,#fff);color:var(--ink,#54405f);font:inherit;font-size:12px}
+.elo-stat-source .date-label{font-size:11px;margin-left:auto}
+.elo-stat-source .btn{font-size:11px;white-space:nowrap}
+.elo-sync-status{font-size:12px;line-height:1.8;margin:8px 0 18px;overflow-wrap:anywhere}
+.elo-sync-status.is-stale{color:#956d3c}
+.elo-statistics .metrics{margin-top:18px}
+.elo-statistics .metric{min-width:0}
+.elo-statistics .metric>strong{font-size:clamp(25px,2.5vw,38px);line-height:1.5;overflow-wrap:anywhere}
+.elo-statistics .metric>strong small{font-size:14px}
+.elo-statistics .metric>small{line-height:1.7;overflow-wrap:anywhere}
+.elo-statistics .segmented{display:flex;flex-wrap:wrap;max-width:100%;gap:6px}
+.elo-statistics .segmented button{min-width:0;white-space:nowrap}
+.elo-stat-panel{margin-top:20px;min-width:0;overflow:hidden}
+.elo-statistics .table-wrap{max-width:100%;overflow:auto}
+.elo-statistics .bar-track{min-width:70px}
+.elo-statistics td button[data-elo-opponent]{text-align:left;color:var(--purple,#9570c8)}
+.elo-statistics [data-elo-detail-status]{font-size:12px;text-align:right;line-height:1.6}
+.elo-empty{padding:18px 8px}
+.elo-rival-form{display:flex;align-items:flex-end;gap:10px;margin-bottom:12px}
+.elo-rival-form label{display:block;flex:1;min-width:0;font-size:12px;line-height:1.7;margin:0}
+.elo-rival-form input{display:block;box-sizing:border-box;width:100%;min-height:42px;margin-top:6px;padding:10px 12px;border:1px solid var(--line,#e5dced);border-radius:10px;background:var(--card,#fff);color:var(--ink,#54405f);font:inherit;font-size:13px}
+.elo-rival-form button{flex-shrink:0;min-height:42px;margin:0}
+.elo-rival-summary{display:flex;gap:8px 20px;align-items:center;flex-wrap:wrap;padding:10px 0 16px;font-size:13px;border-bottom:1px solid var(--line,#e5dced);margin-bottom:14px}
+.elo-rival-summary small{font-size:11px;color:var(--muted,#92869f)}
+.elo-rival-details{margin:10px 0 20px}
+.elo-rival-details summary{cursor:pointer;font-size:12px;padding:8px 0;color:var(--purple,#9570c8)}
+.elo-rival-details .table-wrap{margin:10px 0}
+.elo-choices{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 20px}
+.elo-choices button{white-space:normal;text-align:left}
+.elo-recent-control{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:12px 0 16px}
+.elo-recent-control .elo-sync-status{flex:1;min-width:180px;margin:0}
+.elo-recent-control button{font-size:11px;white-space:nowrap}
+.record-sources{display:flex!important;flex-wrap:wrap!important;max-width:100%;gap:8px}
+.record-sources button{min-width:0;white-space:normal;line-height:1.6}
+.elo-statistics button:focus-visible,.elo-statistics select:focus-visible,.elo-statistics input:focus-visible,.elo-statistics summary:focus-visible,.elo-recent-control button:focus-visible{outline:3px solid #bfa5df;outline-offset:3px}
+@media(max-width:700px){
+.elo-stat-source{gap:8px}.elo-stat-source label{font-size:11px}.elo-stat-source select{font-size:11px;padding:7px 8px}.elo-stat-source .date-label{width:100%;margin-left:0;font-size:10px}
+.elo-statistics .metric>strong{font-size:26px}.elo-statistics .metric>strong small{font-size:12px}.elo-statistics .metric>small{font-size:11px}
+.elo-statistics .section-top{align-items:flex-start;gap:8px}.elo-statistics [data-elo-detail-status]{font-size:10px;max-width:48%}
+.elo-statistics .segmented{gap:5px}.elo-statistics .segmented button{padding:9px 12px;font-size:12px}
+.elo-rival-form{gap:8px}.elo-rival-form button{font-size:11px;padding:10px 12px}
+.elo-rival-summary{gap:6px 12px;font-size:12px}.elo-rival-summary small{width:100%}
+.record-sources button{flex:1 1 145px;padding:10px 12px;font-size:12px}
+.elo-sync-status{font-size:11px}
+}

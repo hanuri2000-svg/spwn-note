@@ -1,11 +1,11 @@
 {
   "repository": "hanuri2000-svg/spawn-note-elo-relay",
-  "revision": "e569c72629dcaec9c6371910fc6c025f0b1d9564",
+  "revision": "c2497b2dd2bf109b16d7a82a676cae3a355b08f6",
   "hashes": {
-    "src/index.js": "84dd934a1eb76d8263137344b260616c91f3fefdf2d40769d5afc24e76f8bfac",
-    "src/public-eloboard.js": "8d8befaaf392ca4759005bf727f1420136b31c9af4a634f7bc300d97c36e854f",
-    "tests/dashboard.test.mjs": "0aa871a37034ae87395d80c9af10b54fe429d1f6b7fa8df35bdda0ad8d4255d3",
-    "tests/public-eloboard.test.mjs": "51635b74ac7123589f6436747dc7741bc36d4f9bc73d4769d97e604661dd5ef8",
+    "src/index.js": "703a1028afcbdf8830dd305a3c6623c7b5ff75749e596a96fe6e614295af418e",
+    "src/public-eloboard.js": "ffe7cc36eb5208f465ea7641c43e55d2c533817688d81a51e0ef6ec157cee15f",
+    "tests/dashboard.test.mjs": "a108675d81f7ce73347d1fd704b7e2419b013a2fc213dc0066c2327276ec81bf",
+    "tests/public-eloboard.test.mjs": "12afcf2be852b996a1965dbf23354382d14751503351fd54235f28facecd54ba",
     "tests/fixtures/eloboard/provenance.json": "c5aaefeddb760744c846d668fe30b72e2444d6d7ecd18d2b551b292ec36b374a",
     "tests/fixtures/eloboard/summary.html.gz": "e8fb2daed2b5b21043b5335828d7996b040b4110b574bf1c07982cb06ceb60f2",
     "tests/fixtures/eloboard/maps.html.gz": "3707f8356e80d789d4eaaf736aadde0a0ff30cfe53fcc5f12567925e8e82bcf8",

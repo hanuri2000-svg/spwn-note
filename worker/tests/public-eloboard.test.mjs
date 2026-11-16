@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto';
 import worker from '../src/index.js';
 import {
   PublicSourceError, createPublicAdapter, parsePublicSummary, parsePublicRival,
-  parsePublicMatches, collectPublicRecent,
+  parsePublicMatches, collectPublicRecent, buildPublicActivity,
 } from '../src/public-eloboard.js';
 
 const fixtureRoot = new URL('./fixtures/eloboard/', import.meta.url);
@@ -56,6 +56,23 @@ function changeMatches(name, mutate, to) {
     return data.replace(needle, '"initial":' + JSON.stringify(nextRows))
       .replaceAll('"to":' + JSON.stringify(originalTo), '"to":' + JSON.stringify(to ?? originalTo));
   });
+}
+
+function profileTotals(html, wins, losses) {
+  const games = wins + losses, rate = games ? Math.round(wins * 1000 / games) / 10 : 0;
+  return rewriteFlight(html, data => data.replace('"2,881"', JSON.stringify(String(games)))
+    .replace('"1,442"', JSON.stringify(String(wins))).replace('"1,439"', JSON.stringify(String(losses)))
+    .replace('"50.1"', JSON.stringify(String(rate))));
+}
+
+function memoryEdgeCache(storage = new Map()) {
+  return { storage, match: async key => storage.has(key) ? new Response(storage.get(key)) : undefined,
+    put: async (key, value) => storage.set(key, await value.text()) };
+}
+
+function activitySnapshot(matches, extra = {}) {
+  return { playerId: 443, fetchedAt: '2026-11-16T10:00:00.000Z', complete: true, allMatches: false,
+    matches, ...extra };
 }
 
 test('compressed public fixtures match the downloaded diagnostic SHA-256 values', () => {
@@ -116,6 +133,164 @@ test('four real inclusive pages produce 50 unique records in original source ord
   ]);
 });
 
+test('activity uses verified complete months and never labels the truncated boundary month as complete', async () => {
+  const calls = [];
+  const adapter = createPublicAdapter({ fetchImpl: sourceFetch(calls), now: () => Date.parse('2026-11-16T10:00:00Z'), edgeCache: () => undefined });
+  const result = await adapter.handle(route('activity?playerId=443'));
+  assert.equal(result.playerId, 443);
+  assert.equal(result.schemaVersion, 1);
+  assert.equal(result.source, 'eloboard');
+  assert.equal(result.asOfDate, '2026-11-16');
+  assert.equal(result.matches, undefined);
+  assert.deepEqual(result.coverage, { from: '2026-09-28', to: '2026-11-14', complete: true, allMatches: false });
+  assert.deepEqual(result.today, { date: '2026-11-16', complete: true, wins: 0, losses: 0, games: 0, winRate: 0 });
+  assert.deepEqual(result.currentMonth, { month: '2026-11', complete: true, wins: 10, losses: 22, games: 32, winRate: 31.3 });
+  assert.deepEqual(result.months, [result.currentMonth,
+    { month: '2026-10', complete: true, wins: 7, losses: 6, games: 13, winRate: 53.8 },
+    { month: '2026-09', complete: false, wins: null, losses: null, games: null, winRate: null },
+  ]);
+  assert.deepEqual(result.streak, { result: 'W', count: 3, complete: true });
+  assert.equal(calls.length, 4);
+});
+
+test('activity and the fixed-player recent list share the same collection and daily cache', async () => {
+  const calls = [];
+  let time = Date.parse('2026-11-16T10:00:00Z');
+  const adapter = createPublicAdapter({ fetchImpl: sourceFetch(calls), now: () => time, edgeCache: () => undefined });
+  const [activity, recent] = await Promise.all([
+    adapter.handle(route('activity?playerId=443')), adapter.handle(route('recent?playerId=443&limit=50')),
+  ]);
+  assert.equal(calls.length, 4);
+  assert.equal(activity.fetchedAt, recent.fetchedAt);
+  assert.equal(recent.matches.length, 50);
+  assert.equal(recent.allMatches, undefined, 'The existing recent contract keeps its original fields');
+  time += 60 * 60_000;
+  assert.deepEqual(await adapter.handle(route('activity?playerId=443')), activity);
+  const short = await adapter.handle(route('recent?playerId=443&limit=10'));
+  assert.equal(short.matches.length, 10);
+  assert.equal(short.requested, 10);
+  assert.equal(short.complete, true);
+  assert.equal(calls.length, 4);
+});
+
+test('activity permits another validated player without exposing that player through recent', async () => {
+  const calls = [];
+  const adapter = createPublicAdapter({ now: () => Date.parse('2026-11-16T10:00:00Z'), edgeCache: () => undefined,
+    fetchImpl: async input => {
+      const url = new URL(input); calls.push(url);
+      assert.equal(url.pathname, '/players/9000');
+      const name = boundaryPages.get(url.searchParams.get('to') || '');
+      return response(rewriteFlight(fixtures[name], data => data.replaceAll('"playerId":443', '"playerId":9000')
+        .replaceAll('"player_id":443', '"player_id":9000').replaceAll('최도랑', '등록 선수')));
+    } });
+  const activity = await adapter.handle(route('activity?playerId=9000'));
+  assert.equal(activity.playerId, 9000);
+  assert.equal(activity.currentMonth.games, 32);
+  assert.equal(activity.matches, undefined);
+  await assert.rejects(adapter.handle(route('recent?playerId=9000&limit=50')), error => error.status === 400);
+  assert.equal(calls.length, 4);
+});
+
+test('today and month require a strictly earlier boundary unless all source matches are known', () => {
+  const rows = [{ id: 1, date: '2026-11-16', result: 'W' }, { id: 2, date: '2026-11-01', result: 'L' }];
+  const result = buildPublicActivity(activitySnapshot(rows));
+  assert.equal(result.today.complete, true);
+  assert.equal(result.today.games, 1);
+  assert.equal(result.currentMonth.complete, false);
+  assert.equal(result.currentMonth.games, null);
+  const sameDay = buildPublicActivity(activitySnapshot(rows.slice(0, 1)));
+  assert.equal(sameDay.today.complete, false);
+  assert.equal(sameDay.today.wins, null);
+  const full = buildPublicActivity(activitySnapshot(rows.slice(0, 1), { allMatches: true }));
+  assert.equal(full.today.complete, true);
+  assert.equal(full.today.wins, 1);
+  assert.equal(full.currentMonth.complete, true);
+  const partial = buildPublicActivity(activitySnapshot(rows, { complete: false }));
+  assert.equal(partial.today.games, null);
+  assert.equal(partial.currentMonth.winRate, null);
+});
+
+test('empty verified profiles return genuine zero activity; a 50-game uniform prefix is only a minimum streak', async () => {
+  const empty = profileTotals(changeMatches('recent-1', () => []), 0, 0);
+  const adapter = createPublicAdapter({ now: () => Date.parse('2026-11-16T10:00:00Z'), edgeCache: () => undefined,
+    fetchImpl: async () => response(empty) });
+  const result = await adapter.handle(route('activity?playerId=443'));
+  assert.deepEqual(result.coverage, { from: null, to: null, complete: true, allMatches: true });
+  assert.equal(result.today.games, 0);
+  assert.equal(result.today.complete, true);
+  assert.equal(result.currentMonth.games, 0);
+  assert.deepEqual(result.streak, { result: null, count: 0, complete: true });
+  const wins = Array.from({ length: 50 }, (_, i) => ({ id: i + 1, date: '2026-11-15', result: 'W' }));
+  assert.deepEqual(buildPublicActivity(activitySnapshot(wins)).streak, { result: 'W', count: 50, complete: false });
+  assert.deepEqual(buildPublicActivity(activitySnapshot(wins, { allMatches: true })).streak, { result: 'W', count: 50, complete: true });
+});
+
+test('activity dates follow the KST snapshot date, reject future rows, and do not advance stale snapshots', () => {
+  const rows = [{ id: 1, date: '2026-11-16', result: 'W' }];
+  const before = buildPublicActivity(activitySnapshot(rows, { fetchedAt: '2026-11-16T14:59:59.999Z' }));
+  const after = buildPublicActivity(activitySnapshot(rows, { fetchedAt: '2026-11-16T15:00:00.000Z' }));
+  assert.equal(before.asOfDate, '2026-11-16');
+  assert.equal(after.asOfDate, '2026-11-17');
+  assert.equal(after.today.complete, true);
+  assert.equal(after.today.games, 0);
+  const stale = buildPublicActivity(activitySnapshot(rows, { fetchedAt: '2026-11-16T14:59:59.999Z', stale: true }));
+  assert.equal(stale.today.date, '2026-11-16');
+  assert.throws(() => buildPublicActivity(activitySnapshot(rows, { fetchedAt: '2026-11-15T14:00:00.000Z' })), PublicSourceError);
+});
+
+test('the upgrade reuses legacy v1 recent snapshots and treats absent allMatches conservatively', async () => {
+  let page = 0;
+  const recent = await collectPublicRecent(() => Promise.resolve(fixtures['recent-' + (++page)]), 443, 50);
+  const legacy = { schemaVersion: 1, source: 'eloboard', fetchedAt: '2026-11-16T10:00:00.000Z', stale: false,
+    sourceUrl: 'https://eloboard.com/players/443?tab=matches', ...recent };
+  const cache = memoryEdgeCache(new Map([['https://eloboard-public-cache.invalid/v1/recent/443/50', JSON.stringify(legacy)]]));
+  const adapter = createPublicAdapter({ now: () => Date.parse('2026-11-16T13:00:00Z'), edgeCache: () => cache,
+    fetchImpl: () => assert.fail('A valid same-day legacy collection must not be fetched again') });
+  const activity = await adapter.handle(route('activity?playerId=443'));
+  assert.equal(activity.coverage.allMatches, false);
+  assert.equal(activity.currentMonth.games, 32);
+  assert.equal(activity.fetchedAt, legacy.fetchedAt);
+  assert.equal((await adapter.handle(route('recent?playerId=443&limit=50'))).matches.length, 50);
+});
+
+test('failed attempts persist across adapter instances for one KST day and allow the next day', async () => {
+  let calls = 0, time = Date.parse('2026-11-16T10:00:00Z');
+  const cache = memoryEdgeCache();
+  const options = { now: () => time, edgeCache: () => cache,
+    fetchImpl: async () => { calls++; return new Response('Forbidden', { status: 403 }); } };
+  await assert.rejects(createPublicAdapter(options).handle(route('activity?playerId=443')), PublicSourceError);
+  time = Date.parse('2026-11-16T14:59:59.999Z');
+  await assert.rejects(createPublicAdapter(options).handle(route('activity?playerId=443')), PublicSourceError);
+  assert.equal(calls, 1);
+  time += 1;
+  await assert.rejects(createPublicAdapter(options).handle(route('activity?playerId=443')), PublicSourceError);
+  assert.equal(calls, 2);
+});
+
+test('failed activity refresh preserves the snapshot day and does not extend the stale retention window', async () => {
+  const calls = [];
+  let failed = false, time = Date.parse('2026-11-16T10:00:00Z');
+  const adapter = createPublicAdapter({ fetchImpl: sourceFetch(calls, { fail: () => failed }), now: () => time, edgeCache: () => undefined });
+  const first = await adapter.handle(route('activity?playerId=443'));
+  time = Date.parse('2026-11-16T15:00:00Z'); failed = true;
+  const stale = await adapter.handle(route('activity?playerId=443'));
+  assert.equal(stale.stale, true);
+  assert.equal(stale.fetchedAt, first.fetchedAt);
+  assert.equal(stale.asOfDate, '2026-11-16');
+  assert.equal(stale.today.date, '2026-11-16');
+  assert.equal(calls.length, 5);
+  const cache = memoryEdgeCache();
+  cache.storage.set('https://eloboard-public-cache.invalid/v1/recent/443/50', JSON.stringify({
+    schemaVersion: 1, fetchedAt: first.fetchedAt, playerId: 443, complete: true, matches: [], allMatches: true,
+  }));
+  time = Date.parse(first.fetchedAt) + 86_399_999;
+  const expiring = createPublicAdapter({ now: () => time, edgeCache: () => cache, fetchImpl: async () => {
+    time += 30_000;
+    return new Response('unavailable', { status: 503 });
+  } });
+  await assert.rejects(expiring.handle(route('activity?playerId=443')), PublicSourceError);
+});
+
 test('missing boundary prefix and changed duplicate objects fail instead of claiming recent completeness', async () => {
   for (const changed of [
     changeMatches('recent-2', rows => rows.slice(1)),
@@ -166,7 +341,7 @@ test('missing source structures, inconsistent aggregates and mismatched player I
   assert.throws(() => parsePublicSummary(missing, fixtures.maps, fixtures['rival-513'], 443), PublicSourceError);
 });
 
-test('five-minute server cache coalesces requests and uses only public HTML URLs', async () => {
+test('KST calendar-day server cache coalesces requests and refreshes on the next day', async () => {
   const calls = [];
   let time = Date.parse('2026-11-16T10:00:00Z');
   const adapter = createPublicAdapter({ fetchImpl: sourceFetch(calls), now: () => time, edgeCache: () => undefined });
@@ -177,22 +352,22 @@ test('five-minute server cache coalesces requests and uses only public HTML URLs
   assert.equal(one.source, 'eloboard');
   assert.equal(one.stale, false);
   assert.equal(one.fetchedAt, '2026-11-16T10:00:00.000Z');
-  time += 299_999;
+  time = Date.parse('2026-11-16T14:59:59.999Z');
   await adapter.handle(route('summary?playerId=443'));
   assert.equal(calls.length, 3);
-  time += 2;
+  time += 1;
   const refreshed = await adapter.handle(route('summary?playerId=443'));
   assert.equal(calls.length, 6);
   assert.notEqual(refreshed.fetchedAt, one.fetchedAt);
   assert.ok(calls.every(url => !url.pathname.startsWith('/api/')));
 });
 
-test('failed refresh keeps the last valid values and fetchedAt, adds stale status and backs off', async () => {
+test('failed refresh keeps validated values and does not repeat the same request until the next KST day', async () => {
   const calls = [];
   let time = Date.parse('2026-11-16T10:00:00Z'), failed = false;
   const adapter = createPublicAdapter({ fetchImpl: sourceFetch(calls, { fail: () => failed }), now: () => time, edgeCache: () => undefined });
   const initial = await adapter.handle(route('summary?playerId=443'));
-  time += 300_001; failed = true;
+  time = Date.parse('2026-11-16T15:00:00.000Z'); failed = true;
   const stale = await adapter.handle(route('summary?playerId=443'));
   assert.equal(stale.stale, true);
   assert.equal(stale.fetchedAt, initial.fetchedAt);
@@ -201,7 +376,10 @@ test('failed refresh keeps the last valid values and fetchedAt, adds stale statu
   assert.equal(calls.length, 4, 'No retries or subsequent pages after a rejected public page');
   await adapter.handle(route('summary?playerId=443'));
   assert.equal(calls.length, 4);
-  time += 30_001; failed = false;
+  time += 60 * 60_000; failed = false;
+  assert.equal((await adapter.handle(route('summary?playerId=443'))).stale, true);
+  assert.equal(calls.length, 4);
+  time = Date.parse('2026-11-17T15:00:00.000Z');
   assert.equal((await adapter.handle(route('summary?playerId=443'))).stale, false);
   assert.equal(calls.length, 7);
 });
@@ -224,7 +402,7 @@ test('IDs and recent scope are bounded before any source request', async () => {
   const adapter = createPublicAdapter({ fetchImpl: () => assert.fail('Invalid input must not fetch'), edgeCache: () => undefined });
   for (const path of [
     'summary', 'summary?playerId=0', 'summary?playerId=-1', 'summary?playerId=1e3',
-    'summary?playerId=9007199254740992', 'summary?playerId=https://evil.test',
+    'summary?playerId=9007199254740992', 'summary?playerId=https://evil.test', 'activity?playerId=0',
     'rival?playerId=443&opponentId=443', 'rival?playerId=443&opponentId=0',
     'recent?playerId=513&limit=50', 'recent?playerId=443&limit=51', 'recent?playerId=443&limit=0',
   ]) await assert.rejects(adapter.handle(route(path)), error => error.status === 400);
@@ -261,7 +439,7 @@ test('public fetch works in the Workers runtime that rejects redirect:error befo
   const adapter = createPublicAdapter({ edgeCache: () => undefined, fetchImpl: async (_url, init) => {
     if (init.redirect === 'error') throw new TypeError('Invalid redirect mode: error');
     assert.equal(init.redirect, 'manual');
-    assert.match(init.headers['User-Agent'], /1\.6\.2/);
+    assert.match(init.headers['User-Agent'], /1\.7\.0/);
     requests++;
     return response(fixtures['rival-513']);
   } });
@@ -289,7 +467,8 @@ test('Worker exposes the additive contracts and allows both existing sites and M
   t.mock.method(globalThis, 'fetch', sourceFetch(calls));
   const env = { ALLOWED_ORIGIN: 'https://hanuri2000-svg.github.io' };
   for (const [path, key] of [
-    ['summary?playerId=443', 'overall'], ['rival?playerId=443&opponentId=513', 'headToHead'], ['recent?playerId=443&limit=50', 'matches'],
+    ['summary?playerId=443', 'overall'], ['rival?playerId=443&opponentId=513', 'headToHead'],
+    ['recent?playerId=443&limit=50', 'matches'], ['activity?playerId=443', 'currentMonth'],
   ]) {
     const result = await worker.fetch(new Request(route(path), { headers: { Origin: 'https://my-starlog.pages.dev' } }), env);
     assert.equal(result.status, 200);

@@ -14,3 +14,20 @@ jobs:
         with:
           node-version: "20"
       - run: node --test tests/*.test.mjs worker/tests/*.test.mjs
+  browser-smoke:
+    runs-on: ubuntu-latest
+    container: mcr.microsoft.com/playwright/python:v1.56.0-noble
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned browser test tooling
+        run: python -m pip install playwright==1.56.0
+      - name: Check statistics layout and journal preservation
+        run: python tests/elo-public-smoke.py
+      - name: Save desktop and mobile screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: statistics-browser-smoke
+          path: test-results/elo-public-smoke/
+          retention-days: 7
