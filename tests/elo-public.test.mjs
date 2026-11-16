@@ -72,7 +72,7 @@ test('preserves the last successful snapshot and its real timestamp on upstream 
   assert.equal(saved.data.fetchedAt, stamp);
   assert.deepEqual(saved.data.overall, stats);
   await client.get('summary', 443);
-  assert.equal(calls, 2, 'a failed 12-hour refresh does not repeat automatically');
+  assert.equal(calls, 2, 'a failed 6-hour refresh does not repeat automatically');
 });
 
 test('shows backend stale data as stale without refetching on every local render', async () => {
@@ -156,7 +156,7 @@ test('an old directory fallback can recover and resolve a newly registered playe
   assert.equal(calls, 2);
 });
 
-test('directory requests share work, reuse the 12-hour cache, and honor force refresh', async () => {
+test('directory requests share work, reuse the 6-hour cache, and honor force refresh', async () => {
   let finish, calls = 0, now = NOW;
   const directory = createDirectory({ storage: null, now: () => now, fetch: () => {
     calls++; return new Promise(resolve => { finish = resolve; });
@@ -199,8 +199,8 @@ test('text destined for public statistics cannot inject markup', () => {
   assert.equal(escape('<img src=x onerror="alert(1)">'), '&lt;img src=x onerror=&quot;alert(1)&quot;&gt;');
 });
 
-test('automatic refresh uses 12 elapsed hours across midnight and reloads', async () => {
-  assert.equal(REFRESH_INTERVAL, 12 * 60 * 60 * 1000);
+test('automatic refresh uses 6 elapsed hours across midnight and reloads', async () => {
+  assert.equal(REFRESH_INTERVAL, 6 * 60 * 60 * 1000);
   assert.equal(kstDay(Date.parse('2026-11-16T15:00:00Z')), '2026-11-17');
   const storage = store();
   let now = Date.parse('2026-11-16T14:30:00Z'), calls = 0;
@@ -223,7 +223,7 @@ test('automatic refresh uses 12 elapsed hours across midnight and reloads', asyn
   assert.equal(calls, 3);
 });
 
-test('a failed first 12-hour attempt stays failed across reloads until an explicit refresh', async () => {
+test('a failed first 6-hour attempt stays failed across reloads until an explicit refresh', async () => {
   const storage = store(), original = storage.values.get('my-starlog-v1');
   let now = NOW, calls = 0, available = false;
   const options = { site: 'failed-day', storage, now: () => now, fetch: async () => {
@@ -292,7 +292,7 @@ test('summary and activity requests can finish independently without fetching re
   assert.ok(seen.every(url => !url.includes('/recent?')));
 });
 
-test('an existing client reads another tab 12-hour success and failure before fetching', async () => {
+test('an existing client reads another tab 6-hour success and failure before fetching', async () => {
   for (const failure of [false, true]) {
     const storage = store();
     let now = NOW, calls = 0, nextDay = false;
@@ -308,14 +308,14 @@ test('an existing client reads another tab 12-hour success and failure before fe
     now += 86400000; nextDay = true;
     await second.get('summary', 443);
     const observed = await first.get('summary', 443);
-    assert.equal(calls, 2, 'an already-open tab reuses the other tab 12-hour attempt');
+    assert.equal(calls, 2, 'an already-open tab reuses the other tab 6-hour attempt');
     assert.equal(observed.data.overall.games, failure ? 38 : 39);
     assert.equal(Boolean(observed.error), failure);
     assert.equal(Boolean(observed.stale), failure);
   }
 });
 
-test('an existing directory reads another tab 12-hour result without repeating the request', async () => {
+test('an existing directory reads another tab 6-hour result without repeating the request', async () => {
   for (const failure of [false, true]) {
     const storage = store();
     let now = NOW, calls = 0, nextDay = false;
@@ -337,7 +337,7 @@ test('an existing directory reads another tab 12-hour result without repeating t
 });
 
 
-test('12-hour cache expiry uses the server fetch timestamp, not a delayed client read', async () => {
+test('6-hour cache expiry uses the server fetch timestamp, not a delayed client read', async () => {
   let now = NOW + 6 * 60 * 60 * 1000, calls = 0;
   const client = createClient({ site: 'source-age', storage: store(), now: () => now, fetch: async () => {
     calls++; return response({ ...summary(), fetchedAt: calls === 1 ? stamp : new Date(now).toISOString() });
@@ -351,7 +351,7 @@ test('12-hour cache expiry uses the server fetch timestamp, not a delayed client
   assert.equal(calls, 2);
 });
 
-test('failed attempts can automatically recover after 12 hours, including after reload', async () => {
+test('failed attempts can automatically recover after 6 hours, including after reload', async () => {
   let now = NOW, calls = 0;
   const storage = store();
   const options = { site: 'recover-12h', storage, now: () => now, fetch: async () => {
@@ -425,9 +425,49 @@ test('combined streak never invents the order of mixed official and ladder games
 });
 
 
-test('an old stale server snapshot is not repeatedly re-requested within the 12-hour window', async () => {
+test('an old stale server snapshot is not repeatedly re-requested within the 6-hour window', async () => {
   let now=NOW+REFRESH_INTERVAL+1,calls=0;
   const client=createClient({storage:store(),now:()=>now,fetch:async()=>{calls++;return response({...summary(),stale:true})}});
   await client.get('summary',443);now+=60000;await client.get('summary',443);
   assert.equal(calls,1);
+});
+
+
+test('manual and browser reload bypass a fresh snapshot only when requested', async () => {
+  const storage = store(), before = storage.values.get('my-starlog-v1');
+  const calls = []; let now = NOW;
+  const options = { site: 'six-hour-refresh', storage, now: () => now, fetch: async url => {
+    calls.push(new URL(url)); return response({ ...summary(), fetchedAt: new Date(now).toISOString() });
+  } };
+  const client = createClient(options);
+  await client.get('summary', 443);
+  now += 60_000;
+  await client.get('summary', 443);
+  assert.equal(calls.length, 1);
+  await client.get('summary', 443, null, true);
+  assert.equal(calls[1].searchParams.get('refresh'), '1');
+  const reload = createClient({ ...options, reloadToken: 'navigation-2' });
+  await reload.get('summary', 443);
+  assert.equal(calls[2].searchParams.get('refresh'), '1');
+  await reload.get('summary', 443);
+  await createClient({ ...options, reloadToken: 'navigation-2' }).get('summary', 443);
+  assert.equal(calls.length, 3);
+  await createClient({ ...options, reloadToken: 'navigation-3' }).get('summary', 443);
+  assert.equal(calls.length, 4);
+  assert.equal(storage.values.get('my-starlog-v1'), before);
+});
+
+test('failed browser reload retains the previous snapshot and personal notes', async () => {
+  const storage = store(), before = storage.values.get('my-starlog-v1'); let calls = 0;
+  const options = { site: 'reload-failure', storage, now: () => NOW, fetch: async () => {
+    calls++; return calls === 1 ? response(summary()) : { ok: false, status: 503 };
+  } };
+  await createClient(options).get('summary', 443);
+  const client = createClient({ ...options, reloadToken: 'reload-1' });
+  const value = await client.get('summary', 443);
+  assert.equal(value.stale, true); assert.equal(value.error, true);
+  assert.deepEqual(value.data.overall, stats); assert.equal(value.data.fetchedAt, stamp);
+  await client.get('summary', 443);
+  assert.equal(calls, 2);
+  assert.equal(storage.values.get('my-starlog-v1'), before);
 });

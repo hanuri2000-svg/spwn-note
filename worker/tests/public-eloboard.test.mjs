@@ -253,13 +253,13 @@ test('the upgrade reuses legacy v1 recent snapshots and treats absent allMatches
   assert.equal((await adapter.handle(route('recent?playerId=443&limit=50'))).matches.length, 50);
 });
 
-test('failed attempts persist across adapter instances for 12 elapsed hours and allow the next 12-hour window', async () => {
+test('failed attempts persist across adapter instances for 6 elapsed hours and allow the next 6-hour window', async () => {
   let calls = 0, time = Date.parse('2026-11-16T10:00:00Z');
   const cache = memoryEdgeCache();
   const options = { now: () => time, edgeCache: () => cache,
     fetchImpl: async () => { calls++; return new Response('Forbidden', { status: 403 }); } };
   await assert.rejects(createPublicAdapter(options).handle(route('activity?playerId=443')), PublicSourceError);
-  time = Date.parse('2026-11-16T21:59:59.999Z');
+  time = Date.parse('2026-11-16T15:59:59.999Z');
   await assert.rejects(createPublicAdapter(options).handle(route('activity?playerId=443')), PublicSourceError);
   assert.equal(calls, 1);
   time += 1;
@@ -341,7 +341,7 @@ test('missing source structures, inconsistent aggregates and mismatched player I
   assert.throws(() => parsePublicSummary(missing, fixtures.maps, fixtures['rival-513'], 443), PublicSourceError);
 });
 
-test('12-hour server cache coalesces requests and refreshes at expiry', async () => {
+test('6-hour server cache coalesces requests and refreshes at expiry', async () => {
   const calls = [];
   let time = Date.parse('2026-11-16T10:00:00Z');
   const adapter = createPublicAdapter({ fetchImpl: sourceFetch(calls), now: () => time, edgeCache: () => undefined });
@@ -352,7 +352,7 @@ test('12-hour server cache coalesces requests and refreshes at expiry', async ()
   assert.equal(one.source, 'eloboard');
   assert.equal(one.stale, false);
   assert.equal(one.fetchedAt, '2026-11-16T10:00:00.000Z');
-  time = Date.parse('2026-11-16T21:59:59.999Z');
+  time = Date.parse('2026-11-16T15:59:59.999Z');
   await adapter.handle(route('summary?playerId=443'));
   assert.equal(calls.length, 3);
   time += 1;
@@ -362,7 +362,7 @@ test('12-hour server cache coalesces requests and refreshes at expiry', async ()
   assert.ok(calls.every(url => !url.pathname.startsWith('/api/')));
 });
 
-test('failed refresh keeps validated values and does not repeat the same request until the next 12-hour window', async () => {
+test('failed refresh keeps validated values and does not repeat the same request until the next 6-hour window', async () => {
   const calls = [];
   let time = Date.parse('2026-11-16T10:00:00Z'), failed = false;
   const adapter = createPublicAdapter({ fetchImpl: sourceFetch(calls, { fail: () => failed }), now: () => time, edgeCache: () => undefined });
@@ -426,6 +426,7 @@ test('public upstream timeout has one bounded attempt', async t => {
     return new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(new Error('aborted'))));
   } });
   const pending = adapter.handle(route('rival?playerId=443&opponentId=513'));
+  await Promise.resolve(); // Start the shared request task before advancing its timer.
   t.mock.timers.tick(29_999);
   assert.equal(signals[0].aborted, false);
   t.mock.timers.tick(1);
@@ -439,7 +440,7 @@ test('public fetch works in the Workers runtime that rejects redirect:error befo
   const adapter = createPublicAdapter({ edgeCache: () => undefined, fetchImpl: async (_url, init) => {
     if (init.redirect === 'error') throw new TypeError('Invalid redirect mode: error');
     assert.equal(init.redirect, 'manual');
-    assert.match(init.headers['User-Agent'], /1\.7\.1/);
+    assert.match(init.headers['User-Agent'], /1\.7\.2/);
     requests++;
     return response(fixtures['rival-513']);
   } });
@@ -486,4 +487,93 @@ test('Worker exposes the additive contracts and allows both existing sites and M
   const bad = await worker.fetch(new Request(route('summary?playerId=0')), env);
   assert.equal(bad.status, 400);
   assert.equal((await bad.json()).code, 'INVALID_ID');
+});
+
+
+test('explicit refresh bypasses a fresh six-hour cache and repeated manual requests coalesce', async () => {
+  const calls = [], cache = memoryEdgeCache();
+  let time = Date.parse('2026-11-16T10:00:00Z');
+  const options = { fetchImpl: sourceFetch(calls), now: () => time, edgeCache: () => cache };
+  const adapter = createPublicAdapter(options);
+  const initial = await adapter.handle(route('summary?playerId=443'));
+  time += 60_000;
+  assert.equal((await adapter.handle(route('summary?playerId=443'))).fetchedAt, initial.fetchedAt);
+  const [one, two] = await Promise.all([
+    adapter.handle(route('summary?playerId=443&refresh=1')),
+    adapter.handle(route('summary?playerId=443&refresh=1')),
+  ]);
+  assert.equal(calls.length, 6);
+  assert.deepEqual(one, two);
+  assert.notEqual(one.fetchedAt, initial.fetchedAt);
+  assert.deepEqual(one.overall, initial.overall);
+  assert.deepEqual(await createPublicAdapter(options).handle(route('summary?playerId=443&refresh=1')), one);
+  assert.equal(calls.length, 6, 'short manual cooldown is shared via edge cache');
+  time += 15_000;
+  const next = await adapter.handle(route('summary?playerId=443&refresh=1'));
+  assert.equal(calls.length, 9);
+  assert.notEqual(next.fetchedAt, one.fetchedAt);
+  assert.ok(calls.every(url => !url.searchParams.has('refresh')), 'manual flag stays inside our relay');
+});
+
+test('manual refresh can recover a failed six-hour request and clears persisted error markers', async () => {
+  const calls = [], cache = memoryEdgeCache();
+  let time = Date.parse('2026-11-16T10:00:00Z'), failed = true;
+  const options = { fetchImpl: sourceFetch(calls, { fail: () => failed }), now: () => time, edgeCache: () => cache };
+  await assert.rejects(createPublicAdapter(options).handle(route('summary?playerId=443')), PublicSourceError);
+  failed = false; time += 60_000;
+  await assert.rejects(createPublicAdapter(options).handle(route('summary?playerId=443')), PublicSourceError);
+  const recovered = await createPublicAdapter(options).handle(route('summary?playerId=443&refresh=1'));
+  assert.equal(recovered.stale, false);
+  assert.equal(calls.length, 4);
+  assert.deepEqual(await createPublicAdapter(options).handle(route('summary?playerId=443')), recovered);
+  assert.equal(calls.length, 4);
+});
+
+test('failed manual refresh keeps the last snapshot and is never reported as a successful new check', async () => {
+  const calls = [], cache = memoryEdgeCache();
+  let time = Date.parse('2026-11-16T10:00:00Z'), failed = false;
+  const options = { fetchImpl: sourceFetch(calls, { fail: () => failed }), now: () => time, edgeCache: () => cache };
+  const adapter = createPublicAdapter(options);
+  const original = await adapter.handle(route('rival?playerId=443&opponentId=513'));
+  time += 60_000; failed = true;
+  const stale = await adapter.handle(route('rival?playerId=443&opponentId=513&refresh=1'));
+  assert.equal(stale.stale, true);
+  assert.equal(stale.fetchedAt, original.fetchedAt);
+  assert.deepEqual(stale.headToHead, original.headToHead);
+  assert.equal((await createPublicAdapter(options).handle(route('rival?playerId=443&opponentId=513'))).stale, true);
+  assert.equal(calls.length, 2, 'failure does not silently fall back to a fresh-looking cached success');
+  failed = false; time += 15_000;
+  const recovered = await adapter.handle(route('rival?playerId=443&opponentId=513&refresh=1'));
+  assert.equal(recovered.stale, false);
+  assert.equal(calls.length, 3);
+  assert.equal((await createPublicAdapter(options).handle(route('rival?playerId=443&opponentId=513'))).stale, false);
+});
+
+test('manual activity and recent refresh share one validated collection without changing dates or scope', async () => {
+  const calls = []; let time = Date.parse('2026-11-16T10:00:00Z');
+  const adapter = createPublicAdapter({ fetchImpl: sourceFetch(calls), now: () => time, edgeCache: () => undefined });
+  await adapter.handle(route('activity?playerId=443'));
+  time += 60_000;
+  const [activity, recent] = await Promise.all([
+    adapter.handle(route('activity?playerId=443&refresh=1')),
+    adapter.handle(route('recent?playerId=443&limit=50&refresh=1')),
+  ]);
+  assert.equal(calls.length, 8);
+  assert.equal(activity.fetchedAt, recent.fetchedAt);
+  assert.equal(activity.asOfDate, '2026-11-16');
+  assert.equal(recent.matches.length, 50);
+  assert.equal(recent.matches[0].date, '2026-11-14');
+  await assert.rejects(adapter.handle(route('recent?playerId=513&refresh=1')), error => error.status === 400);
+  await assert.rejects(adapter.handle(route('summary?playerId=443&refresh=https://other.test')), error => error.status === 400);
+  assert.equal(calls.length, 8);
+});
+
+test('forced public responses are no-store at the HTTP boundary', async () => {
+  const oldFetch = globalThis.fetch;
+  globalThis.fetch = sourceFetch([]);
+  try {
+    const response = await worker.fetch(new Request('https://relay.test/api/elo/public/summary?playerId=443&refresh=1'));
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('Cache-Control'), 'no-store');
+  } finally { globalThis.fetch = oldFetch; }
 });

@@ -1,7 +1,8 @@
 // This adapter reads ordinary public profile pages only. It never executes
 // upstream JavaScript or calls EloBoard's unavailable JSON endpoints.
 const ORIGIN = "https://eloboard.com";
-const REFRESH_INTERVAL = 12 * 60 * 60_000;
+const REFRESH_INTERVAL = 6 * 60 * 60_000;
+const MANUAL_COOLDOWN = 15_000;
 const STALE_TTL = 24 * 60 * 60_000;
 const KST_OFFSET = 9 * 60 * 60_000;
 const MAX_ENTRIES = 100;
@@ -439,7 +440,7 @@ async function fetchPublicHtml(path, fetchImpl) {
     // Workers supports only follow/manual. Refuse redirects explicitly instead
     // of using redirect:error, which throws before sending a Worker request.
     const response = await fetchImpl(url.href, { signal: controller.signal, redirect: "manual",
-      headers: { "User-Agent": "spawn-note-elo-relay/1.7.1 (public profile statistics)", Accept: "text/html" } });
+      headers: { "User-Agent": "spawn-note-elo-relay/1.7.2 (public profile statistics)", Accept: "text/html" } });
     if (response.status >= 300 && response.status < 400) {
       await response.body?.cancel();
       throw new PublicSourceError("ELOBOARD 공개 페이지가 다른 주소로 이동해 지금 확인하지 못했어.", 502, "PUBLIC_SOURCE_REDIRECT");
@@ -466,14 +467,16 @@ async function fetchPublicHtml(path, fetchImpl) {
 }
 
 export function createPublicAdapter({ fetchImpl = (...args) => fetch(...args), now = () => Date.now(), edgeCache = () => globalThis.caches?.default } = {}) {
-  const memory = new Map(), pending = new Map(), failures = new Map();
+  const memory = new Map(), pending = new Map(), failures = new Map(), manualAttempts = new Map();
   function retain(map, key, value) {
     map.delete(key); map.set(key, value);
     while (map.size > MAX_ENTRIES) map.delete(map.keys().next().value);
   }
-  async function cached(key, load) {
+  async function cached(key, load, force = false) {
+    if (pending.has(key)) return pending.get(key);
     const cacheUrl = "https://eloboard-public-cache.invalid/v1/" + key;
     const failureUrl = "https://eloboard-public-cache.invalid/v1/failure/" + key;
+    const manualUrl = "https://eloboard-public-cache.invalid/v1/manual/" + key;
     let stored = memory.get(key);
     const cache = edgeCache();
     if (!stored && cache) {
@@ -486,7 +489,6 @@ export function createPublicAdapter({ fetchImpl = (...args) => fetch(...args), n
     const age = stored ? now() - Date.parse(stored.fetchedAt) : Infinity;
     if (age < 0 || age > STALE_TTL) stored = undefined;
     if (stored) retain(memory, key, stored);
-    if (stored && now() - Date.parse(stored.fetchedAt) < REFRESH_INTERVAL) return stored;
     const usableStored = () => stored && now() >= Date.parse(stored.fetchedAt) &&
       now() - Date.parse(stored.fetchedAt) <= STALE_TTL;
     const stale = () => ({ ...stored, stale: true,
@@ -502,19 +504,59 @@ export function createPublicAdapter({ fetchImpl = (...args) => fetch(...args), n
         }
       } catch { /* A cache read failure must not manufacture an upstream failure. */ }
     }
-    if (failed && failed.at <= now() && now() - failed.at < REFRESH_INTERVAL) {
+    const failedAfterSnapshot = failed && (!stored || failed.at >= Date.parse(stored.fetchedAt));
+    if (!force && failedAfterSnapshot && failed.at <= now() && now() - failed.at < REFRESH_INTERVAL) {
       if (usableStored()) return stale();
       throw failed.error;
     }
+    if (!force && stored && now() - Date.parse(stored.fetchedAt) < REFRESH_INTERVAL) return stored;
+    // A manual request bypasses the six-hour cache, not upstream access controls.
+    // Coalesce requests and briefly reuse the last explicit attempt to prevent click storms.
+    if (force) {
+      let attempt = manualAttempts.get(key);
+      if (!attempt && cache) {
+        try {
+          const response = await cache.match(manualUrl), candidate = response && await response.json();
+          if (Number.isFinite(candidate?.at)) attempt = candidate;
+        } catch { /* An unavailable cache must not block explicit refresh. */ }
+      }
+      if (attempt && attempt.at <= now() && now() - attempt.at < MANUAL_COOLDOWN) {
+        if (pending.has(key)) return pending.get(key);
+        if (failedAfterSnapshot) { if (usableStored()) return stale(); throw failed.error; }
+        if (usableStored()) return stored;
+        throw new PublicSourceError("전적을 확인하고 있어. 잠시 후 다시 확인해줘.", 429, "REFRESH_IN_PROGRESS");
+      }
+    }
     if (pending.has(key)) return pending.get(key);
-    const task = (async () => {
+    const task = Promise.resolve().then(async () => {
       try {
+        if (force) {
+          const attempt = { at: now() }; retain(manualAttempts, key, attempt);
+          if (cache) {
+            try { await cache.put(manualUrl, new Response(JSON.stringify(attempt), {
+              headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=15" }
+            })); } catch { /* In-memory coalescing remains available. */ }
+          }
+        }
         const loaded = await load();
         const data = { schemaVersion: 1, source: "eloboard", fetchedAt: new Date(now()).toISOString(), stale: false, ...loaded };
         if (stored?.complete === true && data.complete === false) throw new PublicSourceError(data.warning);
         retain(memory, key, data); failures.delete(key);
+        if (force) {
+          const completed = { at: now() }; retain(manualAttempts, key, completed);
+          if (cache) { try { await cache.put(manualUrl, new Response(JSON.stringify(completed), {
+            headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=15" }
+          })); } catch {} }
+        }
         if (cache) {
           try { await cache.put(cacheUrl, new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=86400" } })); } catch { /* Memory cache remains usable. */ }
+        }
+        if (cache) {
+          // Remove an earlier failed-attempt marker even after manual recovery.
+          try {
+            if (typeof cache.delete === 'function') await cache.delete(failureUrl);
+            else await cache.put(failureUrl, new Response('{}'));
+          } catch { /* The successful snapshot remains authoritative in this instance. */ }
         }
         return data;
       } catch (error) {
@@ -531,45 +573,48 @@ export function createPublicAdapter({ fetchImpl = (...args) => fetch(...args), n
         if (usableStored()) return stale();
         throw error;
       } finally { pending.delete(key); }
-    })();
+    });
     pending.set(key, task);
     return task;
   }
   const fetchPage = path => fetchPublicHtml(path, fetchImpl);
-  const recentSnapshot = playerId => cached(`recent/${playerId}/50`, async () => ({
+  const recentSnapshot = (playerId, force) => cached(`recent/${playerId}/50`, async () => ({
     sourceUrl: `${ORIGIN}/players/${playerId}?tab=matches`,
     ...await collectPublicSnapshot(fetchPage, playerId, 50),
-  }));
+  }), force);
   return {
     async handle(url) {
       const playerId = positiveId(url.searchParams.get("playerId"));
       const route = url.pathname.split("/").at(-1);
+      const refresh = url.searchParams.get("refresh");
+      if (refresh !== null && refresh !== "1") throw new PublicSourceError("갱신 요청이 올바르지 않아.", 400, "INVALID_REFRESH");
+      const force = refresh === "1";
       if (route === "summary") return cached(`summary/${playerId}`, async () => {
         // Sequential calls stop immediately if a public page is unavailable.
         const summary = await fetchPage(`/players/${playerId}`);
         const maps = await fetchPage(`/players/${playerId}?tab=maps`);
         const rivals = await fetchPage(`/players/${playerId}?tab=rivals`);
         return { sourceUrl: `${ORIGIN}/players/${playerId}`, ...parsePublicSummary(summary, maps, rivals, playerId) };
-      });
+      }, force);
       if (route === "rival") {
         const opponentId = positiveId(url.searchParams.get("opponentId"), "상대 선수");
         if (opponentId === playerId) throw new PublicSourceError("등록 선수와 상대 선수는 달라야 해.", 400, "INVALID_OPPONENT");
         const path = `/players/${playerId}?tab=rivals&vs=${opponentId}`;
         return cached(`rival/${playerId}/${opponentId}`, async () => ({ sourceUrl: ORIGIN + path,
-          ...parsePublicRival(await fetchPage(path), playerId, opponentId) }));
+          ...parsePublicRival(await fetchPage(path), playerId, opponentId) }), force);
       }
       if (route === "recent") {
         const raw = url.searchParams.get("limit") ?? "50";
         const limit = positiveId(raw, "경기 수");
         if (playerId !== 443 || limit > 50) throw new PublicSourceError("최근 경기 조회는 최도랑의 최대 50경기를 지원해.", 400, "RECENT_SCOPE_UNSUPPORTED");
-        const { allMatches, ...snapshot } = await recentSnapshot(playerId);
+        const { allMatches, ...snapshot } = await recentSnapshot(playerId, force);
         const complete = snapshot.matches.length >= limit || snapshot.complete === true;
         return { ...snapshot, requested: limit, complete,
           warning: snapshot.stale ? snapshot.warning : complete ? null : snapshot.warning,
           matches: snapshot.matches.slice(0, limit) };
       }
       if (route === "activity") {
-        const snapshot = await recentSnapshot(playerId);
+        const snapshot = await recentSnapshot(playerId, force);
         const { schemaVersion, source, sourceUrl, fetchedAt, stale, warning } = snapshot;
         return { schemaVersion, source, sourceUrl, fetchedAt, stale, warning, ...buildPublicActivity(snapshot) };
       }
