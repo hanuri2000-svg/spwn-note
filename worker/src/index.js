@@ -1,4 +1,7 @@
+import { createPublicAdapter } from "./public-eloboard.js";
+
 const ELO_API_URL = "https://eloboard.co.kr";
+const publicElo = createPublicAdapter();
 
 const CATEGORY_LABELS = {
   sponsored: "스폰",
@@ -442,7 +445,7 @@ function json(body, status = 200, origin = "*") {
     status,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": status === 200 ? "public, max-age=60" : "no-store",
+      "Cache-Control": status === 200 && !body?.stale ? "public, max-age=60" : "no-store",
       "Access-Control-Allow-Origin": origin,
       "Access-Control-Allow-Methods": "GET, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type",
@@ -451,14 +454,30 @@ function json(body, status = 200, origin = "*") {
   });
 }
 
+function corsOrigin(request, env) {
+  const configured = String(env.ALLOWED_ORIGIN || "*").trim();
+  if (configured === "*") return "*";
+  const allowed = new Set([
+    ...configured.split(/[\s,]+/),
+    ...String(env.ALLOWED_ORIGINS || "").split(/[\s,]+/),
+    "https://hanuri2000-svg.github.io",
+    "https://my-starlog.pages.dev",
+  ].filter(Boolean));
+  const requested = request.headers.get("Origin");
+  return allowed.has(requested) ? requested : configured.split(/[\s,]+/)[0];
+}
+
 export default {
-  async fetch(request, env) {
+  async fetch(request, env = {}) {
     const url = new URL(request.url);
-    const origin = env.ALLOWED_ORIGIN || "*";
+    const origin = corsOrigin(request, env);
     if (request.method === "OPTIONS") return json({ ok: true }, 200, origin);
     if (request.method !== "GET") return json({ error: "method not allowed" }, 405, origin);
-    if (url.pathname === "/health") return json({ ok: true, version: "1.5.5" }, 200, origin);
+    if (url.pathname === "/health") return json({ ok: true, version: "1.6.2" }, 200, origin);
     try {
+      if (["/api/elo/public/summary", "/api/elo/public/rival", "/api/elo/public/recent"].includes(url.pathname)) {
+        return json(await publicElo.handle(url), 200, origin);
+      }
       if (url.pathname === "/api/elo/profile") return json(await eloProfile(url), 200, origin);
       if (url.pathname === "/api/elo/preview") return json(await eloPreview(url), 200, origin);
       if (url.pathname === "/api/elo/rival") return json(await eloRival(url), 200, origin);
@@ -467,7 +486,8 @@ export default {
       return json({ error: "not found" }, 404, origin);
     } catch (error) {
       return json(
-        { error: error?.message || "ELOBOARD 데이터를 가져오지 못했어. 잠시 후 다시 시도해줘." },
+        { error: error?.message || "ELOBOARD 데이터를 가져오지 못했어. 잠시 후 다시 시도해줘.",
+          ...(error?.code ? { code: error.code } : {}) },
         error?.status || 502,
         origin,
       );
