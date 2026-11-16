@@ -351,6 +351,41 @@ async def check_late_recent(browser, origin):
         await state['context'].close()
 
 
+async def check_manual_and_browser_refresh(browser, origin):
+    state = await prepare(browser, origin, 1440)
+    page = state['page']
+    try:
+        await wait_total(page)
+        await page.wait_for_function("!document.querySelector('#journalStatistics [data-elo-refresh]').disabled")
+        assert '6시간' in await page.locator('#journalStatistics').inner_text()
+        initial = len(state['requests'])
+        await page.locator('#journalStatistics [data-elo-refresh]').click()
+        await page.wait_for_function("!document.querySelector('#journalStatistics [data-elo-refresh]').disabled")
+        await wait_total(page)
+        for kind in ['summary', 'activity']:
+            urls = [url for url in state['requests'][initial:] if '/' + kind + '?' in url]
+            assert len(urls) == 1, urls
+            assert parse_qs(urlparse(urls[0]).query).get('refresh') == ['1'], urls
+        await assert_journal(state)
+        initial = len(state['requests'])
+        await page.reload(wait_until='domcontentloaded')
+        await wait_total(page)
+        await page.wait_for_function("!document.querySelector('#journalStatistics [data-elo-refresh]').disabled")
+        for kind in ['summary', 'activity']:
+            urls = [url for url in state['requests'][initial:] if '/' + kind + '?' in url]
+            assert len(urls) == 1, urls
+            assert parse_qs(urlparse(urls[0]).query).get('refresh') == ['1'], urls
+        count = len(state['requests'])
+        await page.evaluate("window.dispatchEvent(new Event('focus'));window.dispatchEvent(new Event('focus'))")
+        await page.wait_for_timeout(250)
+        assert len(state['requests']) == count
+        await assert_journal(state)
+        assert not state['errors'], state['errors']
+        print('PASS manual refresh, browser reload, six-hour labels and preserved journal')
+    finally:
+        await state['context'].close()
+
+
 async def main():
     OUTPUT.mkdir(parents=True, exist_ok=True)
     server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Handler, directory=str(ROOT)))
@@ -362,6 +397,7 @@ async def main():
             try:
                 for width in [1440, 390]:
                     await check_statistics(browser, origin, width)
+                await check_manual_and_browser_refresh(browser, origin)
                 await check_owner_change(browser, origin)
                 await check_directory_recovery(browser, origin)
                 await check_incomplete_periods(browser, origin)

@@ -8,7 +8,7 @@
   const API = 'https://spawn-note-elo-relay.hajimayo8130.workers.dev/api/elo/public';
   const DIRECTORY = 'https://hanuri2000-svg.github.io/star-match-manager/players.json';
   const PREFIX = 'starlog-public-elo:v1:';
-  const REFRESH_INTERVAL = 12 * 60 * 60 * 1000;
+  const REFRESH_INTERVAL = 6 * 60 * 60 * 1000;
   const recentEnough = (at, now, ttl = REFRESH_INTERVAL) => numberOK(at) && now >= at && now - at < ttl;
   const RACES = { P: '프로토스', T: '테란', Z: '저그', R: '랜덤 / 모름' };
   const TABS = [['opponent', '상대별'], ['map', '맵별'], ['race', '종족별'], ['build', '빌드별'], ['type', '유형별'], ['month', '월별']];
@@ -68,10 +68,26 @@
     }
     return [...unique.values()];
   }
+  // A real browser reload asks each endpoint once for fresh data. Hash navigation,
+  // focus, rerenders and normal visits continue to use the six-hour snapshot.
+  function navigationReloadToken() {
+    let token = 0;
+    for (const candidate of [global, (() => { try { return global.top; } catch { return null; } })()]) {
+      try {
+        const performance = candidate?.performance;
+        const navigation = performance?.getEntriesByType?.('navigation')?.[0];
+        if ((navigation?.type === 'reload' || (!navigation && performance?.navigation?.type === 1)) &&
+            Number.isFinite(performance?.timeOrigin)) token = Math.max(token, performance.timeOrigin);
+      } catch { /* Cross-origin embedding must not affect the journal. */ }
+    }
+    return token ? String(token) : '';
+  }
   function createClient(options = {}) {
     const fetcher = options.fetch || ((...args) => global.fetch(...args));
     const storage = storageOf(options), now = options.now || Date.now;
     const ttl = options.ttl ?? REFRESH_INTERVAL;
+    const reloadToken = options.reloadToken === undefined ? navigationReloadToken() : String(options.reloadToken || '');
+    const reloadClaims = new Set();
     const timeouts = { summary: 100000, activity: 220000, rival: 35000, recent: 220000 };
     const site = String(options.site || 'starlog'), base = options.base || API;
     const memory = new Map(), pending = new Map(), failures = new Map(), attempts = new Map();
@@ -108,12 +124,16 @@
           (kind === 'recent' && Number(playerId) !== 443)) return Promise.reject(new Error('조회할 선수를 확인해 주세요.'));
       const cacheKey = key(kind, playerId, opponentId);
       if (pending.has(cacheKey)) return pending.get(cacheKey);
+      const reloadKey = cacheKey + ':reload';
+      if (reloadToken && !reloadClaims.has(cacheKey) && readJSON(storage, reloadKey) !== reloadToken) {
+        reloadClaims.add(cacheKey); writeJSON(storage, reloadKey, reloadToken); force = true;
+      }
       const previous = peek(kind, playerId, opponentId);
       if (!force && previous && fresh(previous.checkedAt)) return Promise.resolve(previous);
       const attempt = attemptFor(cacheKey), failed = failures.get(cacheKey);
       if (!force && attempt && attempt.status !== 'success' && fresh(attempt.at)) {
         return previous ? Promise.resolve({ ...previous, stale: true, error: true }) :
-          Promise.reject(failed?.error || new Error('최근 12시간 이내 자동 확인을 시도했어요. 필요하면 다시 확인을 눌러 주세요.'));
+          Promise.reject(failed?.error || new Error('최근 6시간 이내 자동 확인을 시도했어요. 필요하면 다시 확인을 눌러 주세요.'));
       }
       recordAttempt(cacheKey, 'loading');
       const request = Promise.resolve().then(async () => {
@@ -123,6 +143,7 @@
           const params = new URLSearchParams({ playerId: String(Number(playerId)) });
           if (kind === 'rival') params.set('opponentId', String(Number(opponentId)));
           if (kind === 'recent') params.set('limit', '50');
+          if (force) params.set('refresh', '1');
           const deadline = new Promise((_, reject) => {
             timer = setTimeout(() => { controller.abort(); reject(new Error('조회 시간이 길어지고 있어요.')); }, options.timeout ?? timeouts[kind]);
           });
@@ -372,8 +393,8 @@
     const activeSource = () => (name || options.fixedId) && !unavailable ? 'elo' : 'local';
     host.classList.add('elo-statistics');
     host.innerHTML = '<div class="section-top"><h2>나의 통계 ✧</h2><span class="date-label">' + kstDay().replaceAll('-', '.') + ' 기준</span></div><div class="elo-stat-source"><span data-elo-combined-label>연동 전적 + 직접 기록한 래더</span>' +
-      '<button type="button" class="btn small" data-elo-refresh title="저장된 전적을 다시 확인해요. 원본 갱신은 12시간 간격이에요">↻ 다시 확인</button>' +
-      '<span class="date-label">12시간 간격 자동 확인</span></div><p class="stat-note elo-sync-status" data-elo-status role="status" aria-live="polite"></p>' +
+      '<button type="button" class="btn small" data-elo-refresh title="6시간을 기다리지 않고 최신 전적을 다시 조회해요">↻ 다시 확인</button>' +
+      '<span class="date-label">6시간 간격 자동 확인</span></div><p class="stat-note elo-sync-status" data-elo-status role="status" aria-live="polite"></p>' +
       '<div data-elo-owner></div><div class="metrics" data-elo-metrics></div>' +
       '<div class="section-top"><h2>상세 전적</h2><span class="date-label" data-elo-detail-status></span></div>' +
       '<div class="segmented" role="group" aria-label="상세 전적 구분">' + TABS.map(([key, label]) =>
@@ -625,14 +646,14 @@
     const binding = attachView(host, () => refresh(false)), alive = binding.alive;
     host.classList.add('elo-recent-control');
     host.innerHTML = '<p class="stat-note elo-sync-status" data-elo-recent-status role="status" aria-live="polite"></p>' +
-      '<button type="button" class="btn small" data-elo-refresh title="저장된 전적을 다시 확인해요. 원본 갱신은 12시간 간격이에요">↻ 다시 확인</button>';
+      '<button type="button" class="btn small" data-elo-refresh title="6시간을 기다리지 않고 최신 전적을 다시 조회해요">↻ 다시 확인</button>';
     const status = host.querySelector('[data-elo-recent-status]'), button = host.querySelector('[data-elo-refresh]');
     function emit() {
       if (!alive()) return;
       const data = result?.data;
       status.textContent = (data ? '최도랑 연동 최근 ' + data.matches.length + '경기 · ' + checkedText(result) :
         loading ? '최도랑 최근 50경기를 확인하고 있어요…' : error || '최근 경기 정보가 없어요.') +
-        (data?.warning ? ' · ' + data.warning : '') + ' · 12시간 간격 자동 확인';
+        (data?.warning ? ' · ' + data.warning : '') + ' · 6시간 간격 자동 확인';
       status.classList.toggle('is-stale', Boolean(error || result?.stale));
       button.disabled = loading;
       const snapshot = { matches: data?.matches || [], fetchedAt: data?.fetchedAt || '', complete: data?.complete ?? null,
@@ -657,5 +678,5 @@
     host.__eloController = controller; refresh(false);
     return controller;
   }
-  return { mountStatistics, mountRecent, createClient, createDirectory, candidates, validPayload, escape, kstDay, REFRESH_INTERVAL, addStats, combineGroups, ladderOnly, combinedStreak, opponentMatch };
+  return { mountStatistics, mountRecent, createClient, createDirectory, candidates, validPayload, escape, kstDay, REFRESH_INTERVAL, addStats, combineGroups, ladderOnly, combinedStreak, opponentMatch, navigationReloadToken };
 });

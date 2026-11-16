@@ -1,11 +1,11 @@
 {
   "repository": "hanuri2000-svg/spawn-note-elo-relay",
-  "revision": "0ea18c5aec7c5b3f757ab6df8d23de54949c5f3b",
+  "revision": "257520c5135736291279846db68cb9b163acdb9d",
   "hashes": {
-    "src/index.js": "a83e4be86536fcc436bfefee78c5e19493ebe9508b49820bde0a503ed6fad44c",
-    "src/public-eloboard.js": "e2b9c3526154c1bb55ece337ae64a0d00e3b590c79fadf0a21471b7b2268fc69",
-    "tests/dashboard.test.mjs": "50f0725bd1a3605c63469ae3e661d561a7447e207b7036a42107464dc9684ce4",
-    "tests/public-eloboard.test.mjs": "991b709a53cbcc20d2232eb53dbcb259f756c0d032a3e25e1b12d543be8fbefb",
+    "src/index.js": "0bbdbb0f045c5d7543e015ad2d0efde240a3be7e56f13ff38ed6c6a84d43029b",
+    "src/public-eloboard.js": "8c7f86138ab162a1383dca0fae01f0009f87004aee9c6511426097a90467a3dc",
+    "tests/dashboard.test.mjs": "b8f980bb6b863a1e73ad9cc14ae1e81dcc149005a823282bd4ac7cb1a42b0b62",
+    "tests/public-eloboard.test.mjs": "4f2762cfb2b1a9106c17249beedf975795af6d51b515eba81fa39e4162626d4a",
     "tests/fixtures/eloboard/provenance.json": "c5aaefeddb760744c846d668fe30b72e2444d6d7ecd18d2b551b292ec36b374a",
     "tests/fixtures/eloboard/summary.html.gz": "e8fb2daed2b5b21043b5335828d7996b040b4110b574bf1c07982cb06ceb60f2",
     "tests/fixtures/eloboard/maps.html.gz": "3707f8356e80d789d4eaaf736aadde0a0ff30cfe53fcc5f12567925e8e82bcf8",

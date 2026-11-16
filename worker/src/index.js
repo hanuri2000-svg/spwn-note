@@ -440,12 +440,12 @@ class ResponseError extends Error {
   }
 }
 
-function json(body, status = 200, origin = "*") {
+function json(body, status = 200, origin = "*", noStore = false) {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": status === 200 && !body?.stale ? "public, max-age=60" : "no-store",
+      "Cache-Control": status === 200 && !body?.stale && !noStore ? "public, max-age=60" : "no-store",
       "Access-Control-Allow-Origin": origin,
       "Access-Control-Allow-Methods": "GET, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type",
@@ -473,10 +473,10 @@ export default {
     const origin = corsOrigin(request, env);
     if (request.method === "OPTIONS") return json({ ok: true }, 200, origin);
     if (request.method !== "GET") return json({ error: "method not allowed" }, 405, origin);
-    if (url.pathname === "/health") return json({ ok: true, version: "1.7.1" }, 200, origin);
+    if (url.pathname === "/health") return json({ ok: true, version: "1.7.2" }, 200, origin);
     try {
       if (["/api/elo/public/summary", "/api/elo/public/rival", "/api/elo/public/recent", "/api/elo/public/activity"].includes(url.pathname)) {
-        return json(await publicElo.handle(url), 200, origin);
+        return json(await publicElo.handle(url), 200, origin, url.searchParams.has("refresh"));
       }
       if (url.pathname === "/api/elo/profile") return json(await eloProfile(url), 200, origin);
       if (url.pathname === "/api/elo/preview") return json(await eloPreview(url), 200, origin);
