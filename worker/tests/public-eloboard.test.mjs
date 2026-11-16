@@ -253,13 +253,13 @@ test('the upgrade reuses legacy v1 recent snapshots and treats absent allMatches
   assert.equal((await adapter.handle(route('recent?playerId=443&limit=50'))).matches.length, 50);
 });
 
-test('failed attempts persist across adapter instances for one KST day and allow the next day', async () => {
+test('failed attempts persist across adapter instances for 12 elapsed hours and allow the next 12-hour window', async () => {
   let calls = 0, time = Date.parse('2026-11-16T10:00:00Z');
   const cache = memoryEdgeCache();
   const options = { now: () => time, edgeCache: () => cache,
     fetchImpl: async () => { calls++; return new Response('Forbidden', { status: 403 }); } };
   await assert.rejects(createPublicAdapter(options).handle(route('activity?playerId=443')), PublicSourceError);
-  time = Date.parse('2026-11-16T14:59:59.999Z');
+  time = Date.parse('2026-11-16T21:59:59.999Z');
   await assert.rejects(createPublicAdapter(options).handle(route('activity?playerId=443')), PublicSourceError);
   assert.equal(calls, 1);
   time += 1;
@@ -272,7 +272,7 @@ test('failed activity refresh preserves the snapshot day and does not extend the
   let failed = false, time = Date.parse('2026-11-16T10:00:00Z');
   const adapter = createPublicAdapter({ fetchImpl: sourceFetch(calls, { fail: () => failed }), now: () => time, edgeCache: () => undefined });
   const first = await adapter.handle(route('activity?playerId=443'));
-  time = Date.parse('2026-11-16T15:00:00Z'); failed = true;
+  time = Date.parse('2026-11-16T22:00:00Z'); failed = true;
   const stale = await adapter.handle(route('activity?playerId=443'));
   assert.equal(stale.stale, true);
   assert.equal(stale.fetchedAt, first.fetchedAt);
@@ -341,7 +341,7 @@ test('missing source structures, inconsistent aggregates and mismatched player I
   assert.throws(() => parsePublicSummary(missing, fixtures.maps, fixtures['rival-513'], 443), PublicSourceError);
 });
 
-test('KST calendar-day server cache coalesces requests and refreshes on the next day', async () => {
+test('12-hour server cache coalesces requests and refreshes at expiry', async () => {
   const calls = [];
   let time = Date.parse('2026-11-16T10:00:00Z');
   const adapter = createPublicAdapter({ fetchImpl: sourceFetch(calls), now: () => time, edgeCache: () => undefined });
@@ -352,7 +352,7 @@ test('KST calendar-day server cache coalesces requests and refreshes on the next
   assert.equal(one.source, 'eloboard');
   assert.equal(one.stale, false);
   assert.equal(one.fetchedAt, '2026-11-16T10:00:00.000Z');
-  time = Date.parse('2026-11-16T14:59:59.999Z');
+  time = Date.parse('2026-11-16T21:59:59.999Z');
   await adapter.handle(route('summary?playerId=443'));
   assert.equal(calls.length, 3);
   time += 1;
@@ -362,12 +362,12 @@ test('KST calendar-day server cache coalesces requests and refreshes on the next
   assert.ok(calls.every(url => !url.pathname.startsWith('/api/')));
 });
 
-test('failed refresh keeps validated values and does not repeat the same request until the next KST day', async () => {
+test('failed refresh keeps validated values and does not repeat the same request until the next 12-hour window', async () => {
   const calls = [];
   let time = Date.parse('2026-11-16T10:00:00Z'), failed = false;
   const adapter = createPublicAdapter({ fetchImpl: sourceFetch(calls, { fail: () => failed }), now: () => time, edgeCache: () => undefined });
   const initial = await adapter.handle(route('summary?playerId=443'));
-  time = Date.parse('2026-11-16T15:00:00.000Z'); failed = true;
+  time = Date.parse('2026-11-16T22:00:00.000Z'); failed = true;
   const stale = await adapter.handle(route('summary?playerId=443'));
   assert.equal(stale.stale, true);
   assert.equal(stale.fetchedAt, initial.fetchedAt);
@@ -439,7 +439,7 @@ test('public fetch works in the Workers runtime that rejects redirect:error befo
   const adapter = createPublicAdapter({ edgeCache: () => undefined, fetchImpl: async (_url, init) => {
     if (init.redirect === 'error') throw new TypeError('Invalid redirect mode: error');
     assert.equal(init.redirect, 'manual');
-    assert.match(init.headers['User-Agent'], /1\.7\.0/);
+    assert.match(init.headers['User-Agent'], /1\.7\.1/);
     requests++;
     return response(fixtures['rival-513']);
   } });

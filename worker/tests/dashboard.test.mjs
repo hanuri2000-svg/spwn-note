@@ -24,7 +24,7 @@ test('lightweight score route only fetches a player and never waits for match hi
  const data=await response.json();assert.equal(data.player.elo,'1289.4');assert.equal(data.player.name,'기준');assert.equal(data.overall,undefined);
  assert.deepEqual(calls,['/api/players']);
  assert.equal((await worker.fetch(new Request('https://relay.test/api/elo/profile'),env)).status,400);
- const health=await (await worker.fetch(new Request('https://relay.test/health'),env)).json();assert.equal(health.version,'1.7.0');
+ const health=await (await worker.fetch(new Request('https://relay.test/health'),env)).json();assert.equal(health.version,'1.7.1');
 });
 
 test('upstream stalls abort both attempts and return a recoverable gateway timeout', async t => {

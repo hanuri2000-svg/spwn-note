@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
 const modulePath = existsSync(new URL('../elo-public.js', import.meta.url)) ? '../elo-public.js' : '../starlog/elo-public.js';
-const { createClient, createDirectory, candidates, validPayload, escape, kstDay } = createRequire(import.meta.url)(modulePath);
+const { createClient, createDirectory, candidates, validPayload, escape, kstDay, REFRESH_INTERVAL, addStats, combineGroups, ladderOnly, combinedStreak, opponentMatch } = createRequire(import.meta.url)(modulePath);
 const stats = { wins: 22, losses: 16, games: 38, winRate: 57.9 };
 const stamp = '2026-11-16T04:00:00.000Z';
 const NOW = Date.parse(stamp);
@@ -72,7 +72,7 @@ test('preserves the last successful snapshot and its real timestamp on upstream 
   assert.equal(saved.data.fetchedAt, stamp);
   assert.deepEqual(saved.data.overall, stats);
   await client.get('summary', 443);
-  assert.equal(calls, 2, 'a failed daily refresh does not repeat automatically');
+  assert.equal(calls, 2, 'a failed 12-hour refresh does not repeat automatically');
 });
 
 test('shows backend stale data as stale without refetching on every local render', async () => {
@@ -156,7 +156,7 @@ test('an old directory fallback can recover and resolve a newly registered playe
   assert.equal(calls, 2);
 });
 
-test('directory requests share work, reuse the daily cache, and honor force refresh', async () => {
+test('directory requests share work, reuse the 12-hour cache, and honor force refresh', async () => {
   let finish, calls = 0, now = NOW;
   const directory = createDirectory({ storage: null, now: () => now, fetch: () => {
     calls++; return new Promise(resolve => { finish = resolve; });
@@ -199,28 +199,31 @@ test('text destined for public statistics cannot inject markup', () => {
   assert.equal(escape('<img src=x onerror="alert(1)">'), '&lt;img src=x onerror=&quot;alert(1)&quot;&gt;');
 });
 
-test('automatic refresh follows the Korean calendar day across reloads', async () => {
-  assert.equal(kstDay(Date.parse('2026-11-16T14:59:59.999Z')), '2026-11-16');
-  assert.equal(kstDay(Date.parse('2026-11-16T15:00:00.000Z')), '2026-11-17');
+test('automatic refresh uses 12 elapsed hours across midnight and reloads', async () => {
+  assert.equal(REFRESH_INTERVAL, 12 * 60 * 60 * 1000);
+  assert.equal(kstDay(Date.parse('2026-11-16T15:00:00Z')), '2026-11-17');
   const storage = store();
-  let now = Date.parse('2026-11-16T00:01:00.000Z'), calls = 0;
-  const options = { site: 'daily-test', storage, now: () => now, fetch: async () => {
+  let now = Date.parse('2026-11-16T14:30:00Z'), calls = 0;
+  const start = now;
+  const options = { site: '12h-test', storage, now: () => now, fetch: async () => {
     calls++; return response({ ...summary(), fetchedAt: new Date(now).toISOString() });
   } };
   await createClient(options).get('summary', 443);
-  now += 6 * 60 * 60 * 1000;
-  const reloaded = createClient(options);
-  await reloaded.get('summary', 443);
-  now = Date.parse('2026-11-16T14:59:59.999Z');
-  await reloaded.get('summary', 443);
-  assert.equal(calls, 1, 'five minutes, elapsed hours and reloads do not cause same-day requests');
-  now = Date.parse('2026-11-16T15:00:00.000Z');
-  await reloaded.get('summary', 443);
+  now += 60 * 60 * 1000; // crosses Korean midnight, but does not refresh
   await createClient(options).get('summary', 443);
-  assert.equal(calls, 2, 'the next Korean date refreshes once');
+  now = start + REFRESH_INTERVAL - 1;
+  await createClient(options).get('summary', 443);
+  assert.equal(calls, 1);
+  now++;
+  await createClient(options).get('summary', 443);
+  await createClient(options).get('summary', 443);
+  assert.equal(calls, 2);
+  now += REFRESH_INTERVAL;
+  await createClient(options).get('summary', 443);
+  assert.equal(calls, 3);
 });
 
-test('a failed first daily attempt stays failed across reloads until an explicit refresh', async () => {
+test('a failed first 12-hour attempt stays failed across reloads until an explicit refresh', async () => {
   const storage = store(), original = storage.values.get('my-starlog-v1');
   let now = NOW, calls = 0, available = false;
   const options = { site: 'failed-day', storage, now: () => now, fetch: async () => {
@@ -254,7 +257,7 @@ test('a failed next-day refresh retains the last snapshot across another app sta
   assert.equal(reloaded.stale, true);
   assert.equal(reloaded.data.fetchedAt, stamp);
   assert.deepEqual(reloaded.data.overall, stats);
-  assert.equal(calls, 2, 'same failed day remains cached after reload');
+  assert.equal(calls, 2, 'same failed interval remains cached after reload');
 });
 
 test('activity validates player identity and preserves incomplete periods as unknown', async () => {
@@ -289,7 +292,7 @@ test('summary and activity requests can finish independently without fetching re
   assert.ok(seen.every(url => !url.includes('/recent?')));
 });
 
-test('an existing client reads another tab daily success and failure before fetching', async () => {
+test('an existing client reads another tab 12-hour success and failure before fetching', async () => {
   for (const failure of [false, true]) {
     const storage = store();
     let now = NOW, calls = 0, nextDay = false;
@@ -305,14 +308,14 @@ test('an existing client reads another tab daily success and failure before fetc
     now += 86400000; nextDay = true;
     await second.get('summary', 443);
     const observed = await first.get('summary', 443);
-    assert.equal(calls, 2, 'an already-open tab reuses the other tab daily attempt');
+    assert.equal(calls, 2, 'an already-open tab reuses the other tab 12-hour attempt');
     assert.equal(observed.data.overall.games, failure ? 38 : 39);
     assert.equal(Boolean(observed.error), failure);
     assert.equal(Boolean(observed.stale), failure);
   }
 });
 
-test('an existing directory reads another tab daily result without repeating the request', async () => {
+test('an existing directory reads another tab 12-hour result without repeating the request', async () => {
   for (const failure of [false, true]) {
     const storage = store();
     let now = NOW, calls = 0, nextDay = false;
@@ -331,4 +334,100 @@ test('an existing directory reads another tab daily result without repeating the
     assert.equal(observed.players[0].eloId, failure ? 443 : 900);
     assert.equal(observed.stale, failure);
   }
+});
+
+
+test('12-hour cache expiry uses the server fetch timestamp, not a delayed client read', async () => {
+  let now = NOW + 6 * 60 * 60 * 1000, calls = 0;
+  const client = createClient({ site: 'source-age', storage: store(), now: () => now, fetch: async () => {
+    calls++; return response({ ...summary(), fetchedAt: calls === 1 ? stamp : new Date(now).toISOString() });
+  } });
+  await client.get('summary', 443);
+  now = NOW + REFRESH_INTERVAL - 1;
+  await client.get('summary', 443);
+  assert.equal(calls, 1);
+  now++;
+  await client.get('summary', 443);
+  assert.equal(calls, 2);
+});
+
+test('failed attempts can automatically recover after 12 hours, including after reload', async () => {
+  let now = NOW, calls = 0;
+  const storage = store();
+  const options = { site: 'recover-12h', storage, now: () => now, fetch: async () => {
+    calls++; return calls === 1 ? { ok: false } : response({ ...summary(), fetchedAt: new Date(now).toISOString() });
+  } };
+  await assert.rejects(createClient(options).get('summary', 443));
+  now += REFRESH_INTERVAL - 1;
+  await assert.rejects(createClient(options).get('summary', 443));
+  assert.equal(calls, 1);
+  now++;
+  assert.equal((await createClient(options).get('summary', 443)).data.overall.games, 38);
+  assert.equal(calls, 2);
+});
+
+const ladderGames = [
+  { id:'ladder1', type:'래더', date:'2026-11-16', opponent:'소이', map:'투혼', race:'Z', result:'W' },
+  { id:'ladder2', type:'래더', date:'2026-11-16', opponent:'정소이', map:'투혼', race:'Z', result:'L' }
+];
+const playerDirectory = [{ name:'정소이', aliases:['소이'], eloId:513 }];
+
+test('one statistics view adds only independent ladder games, not duplicate manual official records', () => {
+  const input = [...ladderGames, { ...ladderGames[0], type:'스폰' }, { ...ladderGames[0], type:'CK' },
+    { ...ladderGames[0], source:'eloboard' }, { ...ladderGames[0], eloRecordId:'1000' }];
+  const before = JSON.stringify(input);
+  const selected = ladderOnly(input);
+  assert.equal(selected.length, 2);
+  assert.deepEqual(addStats(stats, { wins:1, losses:1, games:2, winRate:50 }),
+    { wins:23, losses:17, games:40, winRate:57.5, ladder:{wins:1,losses:1,games:2,winRate:50} });
+  assert.equal(addStats(null, stats), null);
+  assert.equal(JSON.stringify(input), before);
+});
+
+test('ladder is included in the same race, map, type, month and opponent tables', () => {
+  const source = summary();
+  for (const [key, rows] of [['race', source.races], ['map', source.maps], ['opponent', source.opponents]]) {
+    const result = combineGroups(rows, ladderGames, key, playerDirectory);
+    assert.equal(result.length, 1, key);
+    assert.equal(result[0].games, 40, key);
+    assert.equal(result[0].wins, 23, key);
+    assert.equal(result[0].losses, 17, key);
+    assert.equal(result[0].ladder.games, 2, key);
+  }
+  const types = combineGroups(source.types, ladderGames, 'type');
+  assert.equal(types.find(row=>row.label==='래더').games, 2);
+  assert.equal(types.find(row=>row.label==='스폰').games, 38);
+  const month = combineGroups([{month:'2026-11',label:'2026-11',complete:true,...stats}], ladderGames, 'month');
+  assert.equal(month[0].games,40);
+});
+
+test('missing source months and bounded rival lists do not turn ladder counts into lifetime totals', () => {
+  for (const key of ['month','opponent']) {
+    const rows = combineGroups([], ladderGames, key, playerDirectory);
+    assert.equal(rows[0].complete,false);
+    assert.equal(rows[0].games,null);
+    assert.equal(rows[0].ladder.games,2);
+  }
+  const unknown = combineGroups([{label:'2026-11',month:'2026-11',complete:false,wins:null,losses:null,games:null,winRate:null}], ladderGames,'month');
+  assert.equal(unknown[0].games,null);
+  assert.equal(unknown[0].ladder.games,2);
+  assert.equal(opponentMatch(ladderGames[0],{id:513,name:'정소이'},playerDirectory),true);
+  assert.equal(opponentMatch(ladderGames[0],{id:513,name:'정소이'},[...playerDirectory,{name:'다른 선수',aliases:['소이'],eloId:900}]),false);
+});
+
+test('combined streak never invents the order of mixed official and ladder games on one date', () => {
+  const a = {...activity(), recentResults:[{id:1,date:'2026-11-15',result:'W'},{id:2,date:'2026-11-14',result:'L'}]};
+  assert.deepEqual(combinedStreak(a,[ladderGames[0]]),{result:'W',count:2,complete:true});
+  const mixed = {...a,recentResults:[{id:1,date:'2026-11-16',result:'L'}]};
+  assert.equal(combinedStreak(mixed,[ladderGames[0]]).ambiguous,true);
+  assert.equal(combinedStreak(mixed,[ladderGames[0]]).complete,false);
+  assert.equal(validPayload('activity',{...a,recentResults:[{id:1,date:'2026-11-17',result:'W'}]},443),false);
+});
+
+
+test('an old stale server snapshot is not repeatedly re-requested within the 12-hour window', async () => {
+  let now=NOW+REFRESH_INTERVAL+1,calls=0;
+  const client=createClient({storage:store(),now:()=>now,fetch:async()=>{calls++;return response({...summary(),stale:true})}});
+  await client.get('summary',443);now+=60000;await client.get('summary',443);
+  assert.equal(calls,1);
 });
