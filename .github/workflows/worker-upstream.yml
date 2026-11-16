@@ -20,3 +20,5 @@ jobs:
           node-version: '20'
       - run: npm run check:upstream && npm test
         working-directory: worker
+        env:
+          GITHUB_TOKEN: ${{ github.token }}

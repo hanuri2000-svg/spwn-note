@@ -14,8 +14,13 @@ const paths = [
   'wrangler.jsonc',
 ];
 const get = async url => {
-  const response = await fetch(url, { signal: AbortSignal.timeout(20000) });
-  if (!response.ok) throw new Error(`Upstream unavailable (${response.status}); deployment stopped.`);
+  const target = new URL(url);
+  const api = target.origin === 'https://api.github.com';
+  const headers = api ? { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' } : {};
+  if (api && process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+  // The job token is only for GitHub REST, never raw file downloads or redirects.
+  const response = await fetch(url, { headers, redirect: 'error', signal: AbortSignal.timeout(20000) });
+  if (!response.ok) throw new Error(`Upstream unavailable at ${target.hostname}${target.pathname} (${response.status}); deployment stopped.`);
   return Buffer.from(await response.arrayBuffer());
 };
 const revision = JSON.parse((await get(`https://api.github.com/repos/${repository}/commits/main`)).toString('utf8')).sha;
